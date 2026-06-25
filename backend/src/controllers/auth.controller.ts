@@ -1,0 +1,121 @@
+import type { Request, Response } from 'express';
+import { prisma } from '../lib/prisma.js';
+import {
+  hashPassword,
+  verifyPassword,
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  passwordSchema,
+} from '../services/auth.service.js';
+import { consumeInviteLink } from '../services/invite.service.js';
+import { consumePasswordResetLink } from '../services/password-reset.service.js';
+import { z } from 'zod';
+
+const REFRESH_TOKEN_COOKIE = 'refreshToken';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/',
+};
+
+const registerSchema = z.object({
+  token: z.string().min(1),
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/),
+  password: z.string().min(8),
+});
+
+const loginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+export async function register(req: Request, res: Response): Promise<void> {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { token, username, password } = parsed.data;
+  const passwordError = passwordSchema.validate(password);
+  if (passwordError) { res.status(400).json({ error: passwordError }); return; }
+
+  try {
+    await consumeInviteLink(token);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({ where: { username } });
+  if (existing) { res.status(409).json({ error: 'Username already taken' }); return; }
+
+  const passwordHash = await hashPassword(password);
+  const user = await prisma.user.create({ data: { username, passwordHash } });
+
+  const accessToken = signAccessToken(user.id);
+  const refreshToken = signRefreshToken(user.id);
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, COOKIE_OPTIONS);
+  res.status(201).json({ accessToken, user: { id: user.id, username: user.username } });
+}
+
+export async function login(req: Request, res: Response): Promise<void> {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'Invalid input' }); return; }
+
+  const { username, password } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { username } });
+  if (!user || !(await verifyPassword(user.passwordHash, password))) {
+    res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  const accessToken = signAccessToken(user.id);
+  const refreshToken = signRefreshToken(user.id);
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, COOKIE_OPTIONS);
+  res.json({ accessToken, user: { id: user.id, username: user.username } });
+}
+
+export async function refresh(req: Request, res: Response): Promise<void> {
+  const token = (req.cookies as Record<string, string>)?.[REFRESH_TOKEN_COOKIE];
+  if (!token) { res.status(401).json({ error: 'No refresh token' }); return; }
+
+  try {
+    const payload = verifyRefreshToken(token);
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) { res.status(401).json({ error: 'User not found' }); return; }
+
+    const accessToken = signAccessToken(user.id);
+    res.json({ accessToken });
+  } catch {
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+}
+
+export function logout(_req: Request, res: Response): void {
+  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/' });
+  res.json({ ok: true });
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'Invalid input' }); return; }
+
+  const { token, newPassword } = parsed.data;
+  const passwordError = passwordSchema.validate(newPassword);
+  if (passwordError) { res.status(400).json({ error: passwordError }); return; }
+
+  try {
+    const link = await consumePasswordResetLink(token);
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({ where: { id: link.userId }, data: { passwordHash } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}

@@ -1,0 +1,117 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  username        String   @unique
+  passwordHash    String
+  createdAt       DateTime @default(now())
+  recipes         Recipe[]
+  memberships     CollectionMembership[]
+  passwordResets  PasswordResetLink[]
+  addedToCollections RecipeCollection[] @relation("AddedBy")
+}
+
+model Recipe {
+  id            String   @id @default(uuid())
+  title         String
+  sourceUrl     String?
+  isFallback    Boolean  @default(false)
+  ingredients   Json
+  instructions  Json
+  prepTime      Int?
+  cookTime      Int?
+  servings      Int?
+  notes         String?
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id])
+  coverImageId  String?  @unique
+  coverImage    Image?   @relation("CoverImage", fields: [coverImageId], references: [id])
+  images        Image[]  @relation("RecipeImages")
+  tags          Tag[]
+  collections   RecipeCollection[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([title])
+}
+
+model Tag {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  recipes Recipe[]
+
+  @@index([name])
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  name        String
+  members     CollectionMembership[]
+  recipes     RecipeCollection[]
+  createdAt   DateTime @default(now())
+}
+
+model CollectionMembership {
+  id           String     @id @default(uuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  role         Role
+
+  @@unique([collectionId, userId])
+}
+
+model RecipeCollection {
+  id           String     @id @default(uuid())
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  addedById    String
+  addedBy      User       @relation("AddedBy", fields: [addedById], references: [id])
+
+  @@unique([recipeId, collectionId])
+}
+
+model Image {
+  id            String   @id @default(uuid())
+  recipeId      String
+  recipe        Recipe   @relation("RecipeImages", fields: [recipeId], references: [id], onDelete: Cascade)
+  filePath      String
+  isCover       Boolean  @default(false)
+  coverOfRecipe Recipe?  @relation("CoverImage")
+}
+
+model InviteLink {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  description String
+  used        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model PasswordResetLink {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  used      Boolean  @default(false)
+  expiresAt DateTime
+}
+
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
