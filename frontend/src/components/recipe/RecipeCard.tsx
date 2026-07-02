@@ -1,6 +1,7 @@
 import { Box, Text, Badge, HStack, Image, VStack, Spinner } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import type { Recipe } from '../../types';
+import { getSiteDomain } from '../../utils/site';
 
 interface Props {
   recipe: Recipe;
@@ -22,6 +23,7 @@ function TrashIcon() {
 
 export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
   const coverUrl = recipe.coverImage ? `/images/${recipe.coverImage.filePath}` : null;
+  const siteDomain = getSiteDomain(recipe.sourceUrl);
 
   return (
     <Link to={`/recipes/${recipe.id}`} style={{ display: 'block', textDecoration: 'none' }}>
@@ -53,6 +55,11 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
             {recipe.title}
           </Text>
           <HStack gap={1} flexWrap="wrap">
+            {siteDomain && (
+              <Badge colorPalette="blue" size="sm">
+                {siteDomain}
+              </Badge>
+            )}
             {recipe.tags.slice(0, 3).map((tag) => (
               <Badge key={tag.id} colorPalette="green" size="sm">
                 {tag.name}

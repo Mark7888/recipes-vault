@@ -8,6 +8,7 @@ import {
   deleteRecipe,
   setRecipeTags,
   isRecipeAccessibleByUser,
+  getRecipeSitesForUser,
 } from '../services/recipes.service.js';
 import { getCollectionIdsContainingRecipe } from '../services/collections.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
@@ -20,8 +21,15 @@ export async function listRecipes(req: Request, res: Response): Promise<void> {
   const search = req.query.search as string | undefined;
   const tags = req.query['tags[]'] as string | string[] | undefined;
   const tagArray = tags ? (Array.isArray(tags) ? tags : [tags]) : undefined;
-  const recipes = await getRecipesForUser(userId, search, tagArray);
+  const site = req.query.site as string | undefined;
+  const recipes = await getRecipesForUser(userId, search, tagArray, site);
   res.json(recipes);
+}
+
+export async function listRecipeSites(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const sites = await getRecipeSitesForUser(userId);
+  res.json(sites);
 }
 
 export async function getRecipe(req: Request, res: Response): Promise<void> {

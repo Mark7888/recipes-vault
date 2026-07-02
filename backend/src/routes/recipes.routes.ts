@@ -11,6 +11,7 @@ import {
   removeImage,
   setCoverImage,
   getRecipeCollections,
+  listRecipeSites,
 } from '../controllers/recipes.controller.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 
@@ -18,6 +19,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 const router = Router();
 router.use(authMiddleware);
 router.get('/', listRecipes);
+router.get('/sites', listRecipeSites);
 router.get('/:id', getRecipe);
 router.patch('/:id', patchRecipe);
 router.delete('/:id', removeRecipe);

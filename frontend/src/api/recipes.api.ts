@@ -2,8 +2,11 @@ import { apiClient } from './client';
 import type { Recipe } from '../types';
 
 export const recipesApi = {
-  list: (params?: { search?: string; tags?: string[] }) =>
-    apiClient.get<Recipe[]>('/recipes', { params: { search: params?.search, 'tags[]': params?.tags } }).then(r => r.data),
+  list: (params?: { search?: string; tags?: string[]; site?: string }) =>
+    apiClient.get<Recipe[]>('/recipes', { params: { search: params?.search, 'tags[]': params?.tags, site: params?.site } }).then(r => r.data),
+
+  listSites: () =>
+    apiClient.get<string[]>('/recipes/sites').then(r => r.data),
 
   get: (id: string) =>
     apiClient.get<Recipe>(`/recipes/${id}`).then(r => r.data),

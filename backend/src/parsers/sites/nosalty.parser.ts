@@ -92,8 +92,10 @@ const parser: Parser = {
       .filter(Boolean)
       .map((text, i) => ({ step: i + 1, text: text.trim() }));
 
+    // Tags: only the recipe's own attribute list — other m-tags lists on the
+    // page (popular/site-wide tag clouds) are identical on every recipe page
     const tags: string[] = [];
-    $('ul.m-tags a.m-tags__tagItem').each((_, a) => {
+    $('.p-recipe__attributeList ul.m-tags a.m-tags__tagItem').each((_, a) => {
       const name = $(a).text().trim().toLowerCase();
       if (name && !tags.includes(name)) tags.push(name);
     });

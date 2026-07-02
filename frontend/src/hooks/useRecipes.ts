@@ -5,16 +5,24 @@ import { collectionKeys } from './useCollections';
 
 export const recipeKeys = {
   all: ['recipes'] as const,
-  list: (params?: { search?: string; tags?: string[] }) => ['recipes', 'list', params] as const,
+  list: (params?: { search?: string; tags?: string[]; site?: string }) => ['recipes', 'list', params] as const,
+  sites: () => ['recipes', 'sites'] as const,
   detail: (id: string) => ['recipes', 'detail', id] as const,
   images: (id: string) => ['recipes', 'images', id] as const,
   collections: (id: string) => ['recipes', 'collections', id] as const,
 };
 
-export function useRecipes(params?: { search?: string; tags?: string[] }) {
+export function useRecipes(params?: { search?: string; tags?: string[]; site?: string }) {
   return useQuery({
     queryKey: recipeKeys.list(params),
     queryFn: () => recipesApi.list(params),
+  });
+}
+
+export function useRecipeSites() {
+  return useQuery({
+    queryKey: recipeKeys.sites(),
+    queryFn: () => recipesApi.listSites(),
   });
 }
 

@@ -32,16 +32,41 @@ export async function getRecipeById(id: string) {
   });
 }
 
-export async function getRecipesForUser(ownerId: string, search?: string, tags?: string[]) {
-  return prisma.recipe.findMany({
+export function extractSiteDomain(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+export async function getRecipesForUser(ownerId: string, search?: string, tags?: string[], site?: string) {
+  const recipes = await prisma.recipe.findMany({
     where: {
       ownerId,
       ...(search && { title: { contains: search, mode: 'insensitive' } }),
       ...(tags && tags.length > 0 && { tags: { some: { name: { in: tags } } } }),
+      ...(site && { sourceUrl: { contains: site } }),
     },
     include: { tags: true, coverImage: true },
     orderBy: { createdAt: 'desc' },
   });
+  if (!site) return recipes;
+  return recipes.filter(r => extractSiteDomain(r.sourceUrl) === site);
+}
+
+export async function getRecipeSitesForUser(ownerId: string): Promise<string[]> {
+  const recipes = await prisma.recipe.findMany({
+    where: { ownerId, sourceUrl: { not: null } },
+    select: { sourceUrl: true },
+  });
+  const sites = new Set<string>();
+  for (const r of recipes) {
+    const domain = extractSiteDomain(r.sourceUrl);
+    if (domain) sites.add(domain);
+  }
+  return [...sites].sort();
 }
 
 export async function updateRecipe(id: string, data: Partial<RecipeInput>) {
