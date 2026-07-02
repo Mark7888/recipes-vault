@@ -29,5 +29,6 @@ export interface ParsedRecipe {
   servings?: number;
   notes?: string;
   imageUrls: string[];
+  tags?: string[];
   isFallback: boolean;
 }

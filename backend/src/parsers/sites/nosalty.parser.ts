@@ -92,6 +92,12 @@ const parser: Parser = {
       .filter(Boolean)
       .map((text, i) => ({ step: i + 1, text: text.trim() }));
 
+    const tags: string[] = [];
+    $('ul.m-tags a.m-tags__tagItem').each((_, a) => {
+      const name = $(a).text().trim().toLowerCase();
+      if (name && !tags.includes(name)) tags.push(name);
+    });
+
     return {
       title,
       sourceUrl: url,
@@ -102,6 +108,7 @@ const parser: Parser = {
       servings,
       notes,
       imageUrls,
+      tags,
       isFallback: false,
     };
   },

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { captureUrl } from '../services/parser-dispatch.service.js';
-import { createRecipe } from '../services/recipes.service.js';
+import { createRecipe, setRecipeTags } from '../services/recipes.service.js';
+import { findOrCreateTags } from '../services/tags.service.js';
 import { downloadAndSaveImage, saveImageRecord } from '../services/image-storage.service.js';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
@@ -23,6 +24,11 @@ export async function captureAndCreateRecipe(url: string, userId: string) {
     servings: parsed.servings,
     notes: parsed.notes,
   });
+
+  if (parsed.tags && parsed.tags.length > 0) {
+    const tags = await findOrCreateTags(parsed.tags);
+    await setRecipeTags(recipe.id, tags.map((t) => t.id));
+  }
 
   // Download and save images in the background so the response stays fast
   if (parsed.imageUrls.length > 0) {

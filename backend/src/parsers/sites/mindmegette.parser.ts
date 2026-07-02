@@ -92,6 +92,19 @@ const parser: Parser = {
       .filter(Boolean)
       .map((text, i) => ({ step: i + 1, text: text.trim() }));
 
+    // Tags appear twice (mobile + desktop widget), so dedupe by name. Top-level
+    // /receptkategoria/<category> links are generic section names ("alkalom",
+    // "allergének", …) — only /cimke/… tags and category leaves are real tags.
+    const tags: string[] = [];
+    $('a.tag').each((_, a) => {
+      const href = $(a).attr('href') ?? '';
+      const name = $(a).text().trim().toLowerCase();
+      if (!name) return;
+      const segments = href.split('/').filter(Boolean);
+      if (segments[0] === 'receptkategoria' && segments.length < 3) return;
+      if (!tags.includes(name)) tags.push(name);
+    });
+
     return {
       title,
       sourceUrl: url,
@@ -102,6 +115,7 @@ const parser: Parser = {
       servings,
       notes,
       imageUrls,
+      tags,
       isFallback: false,
     };
   },
