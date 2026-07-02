@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Button, Heading, Input, VStack, Text, Container } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
 
@@ -11,6 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +20,15 @@ export default function Login() {
     try {
       const data = await authApi.login(username, password);
       setAuth(data.user, data.accessToken);
-      navigate('/recipes');
+      const redirect = searchParams.get('redirect');
+      if (redirect && redirect.startsWith('/')) {
+        // Full navigation: the redirect target is the capture catch-all route,
+        // not an in-app SPA route, so it needs a real request (with the fresh
+        // refresh-token cookie) rather than client-side routing.
+        window.location.href = redirect;
+      } else {
+        navigate('/recipes');
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg || 'Login failed');

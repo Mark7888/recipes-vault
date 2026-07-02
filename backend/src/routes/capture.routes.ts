@@ -10,7 +10,7 @@ import type { AuthenticatedRequest } from '../types/index.js';
 
 const router = Router();
 
-export async function handleCapture(url: string, userId: string, res: Response): Promise<void> {
+export async function captureAndCreateRecipe(url: string, userId: string) {
   const parsed = await captureUrl(url);
   const recipe = await createRecipe(userId, {
     title: parsed.title,
@@ -41,6 +41,11 @@ export async function handleCapture(url: string, userId: string, res: Response):
     });
   }
 
+  return recipe;
+}
+
+export async function handleCapture(url: string, userId: string, res: Response): Promise<void> {
+  const recipe = await captureAndCreateRecipe(url, userId);
   res.status(201).json({ recipeId: recipe.id });
 }
 

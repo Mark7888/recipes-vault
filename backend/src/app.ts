@@ -10,10 +10,12 @@ import recipesRoutes from './routes/recipes.routes.js';
 import collectionsRoutes from './routes/collections.routes.js';
 import tagsRoutes from './routes/tags.routes.js';
 import usersRoutes from './routes/users.routes.js';
-import captureRoutes, { handleCapture } from './routes/capture.routes.js';
-import { authMiddleware } from './middleware/auth.middleware.js';
-import type { AuthenticatedRequest } from './types/index.js';
+import captureRoutes, { captureAndCreateRecipe } from './routes/capture.routes.js';
+import { verifyRefreshToken } from './services/auth.service.js';
+import { prisma } from './lib/prisma.js';
 import type { Request, Response, NextFunction } from 'express';
+
+const REFRESH_TOKEN_COOKIE = 'refreshToken';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,15 +55,35 @@ export function createApp() {
       const qs = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query as Record<string, string>).toString() : '';
       const targetUrl = `${scheme}://${capturedDomain}${restPath}${qs}`;
 
-      // Require auth for capture
-      authMiddleware(req, res, async () => {
-        const userId = (req as AuthenticatedRequest).userId;
+      // This route is reached by directly navigating the browser to it, so there's
+      // no JS around to attach an Authorization header. Authenticate off the
+      // httpOnly refresh-token cookie instead, and send the user to log in if it's
+      // missing or expired (returning them here afterwards).
+      void (async () => {
+        const refreshToken = (req.cookies as Record<string, string>)?.[REFRESH_TOKEN_COOKIE];
+        let userId: string | undefined;
+        if (refreshToken) {
+          try {
+            const payload = verifyRefreshToken(refreshToken);
+            const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+            if (user) userId = user.id;
+          } catch {
+            // fall through to redirect-to-login below
+          }
+        }
+
+        if (!userId) {
+          res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
+          return;
+        }
+
         try {
-          await handleCapture(targetUrl, userId, res);
+          const recipe = await captureAndCreateRecipe(targetUrl, userId);
+          res.redirect(`/recipes/${recipe.id}/edit`);
         } catch (err) {
           next(err);
         }
-      });
+      })();
       return;
     }
     next();
