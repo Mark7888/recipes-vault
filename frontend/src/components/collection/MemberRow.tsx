@@ -12,7 +12,7 @@ interface Props {
 
 export function MemberRow({ member, currentUserId, isOwner, onRoleChange, onRemove }: Props) {
   return (
-    <HStack justify="space-between" py={2} borderBottomWidth="1px" w="full">
+    <HStack justify="space-between" py={2} borderBottomWidth="1px" w="full" flexWrap="wrap" gap={2}>
       <Text fontWeight="medium">{member.user.username}</Text>
       <HStack gap={2}>
         {isOwner && member.userId !== currentUserId ? (

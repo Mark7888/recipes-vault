@@ -37,7 +37,7 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
       </Button>
 
       {open && (
-        <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden">
+        <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden" minW={{ base: '270px', sm: '360px' }} maxW="88vw">
           {/* Current members (non-owner) */}
           {nonOwnerMembers.length > 0 && (
             <Box borderBottomWidth="1px">

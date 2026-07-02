@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, Button, Grid, GridItem, Heading, HStack, Input, Spinner, Tabs, Text, VStack
+  Box, Button, Flex, Grid, GridItem, Heading, HStack, Input, Spinner, Tabs, Text, VStack
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useCollections, useCreateCollection } from '../hooks/useCollections';
@@ -10,7 +10,10 @@ import { RoleBadge } from '../components/collection/RoleBadge';
 function CollectionGrid({ collections, userId }: { collections: ReturnType<typeof useCollections>['data']; userId: string }) {
   if (!collections || collections.length === 0) return null;
   return (
-    <Grid templateColumns="repeat(auto-fill, minmax(240px, 1fr))" gap={4}>
+    <Grid
+      templateColumns={{ base: 'repeat(auto-fill, minmax(150px, 1fr))', md: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+      gap={{ base: 3, md: 4 }}
+    >
       {collections.map((collection) => {
         const myRole = collection.members.find((m) => m.userId === userId)?.role;
         return (
@@ -63,12 +66,12 @@ export default function Collections() {
   return (
     <Box py={4}>
       <Tabs.Root defaultValue="owned" variant="line">
-        <HStack justify="space-between" mb={4} align="center">
-          <Tabs.List>
-            <Tabs.Trigger value="owned">
+        <HStack justify="space-between" mb={4} align="center" flexWrap="wrap" gap={3}>
+          <Tabs.List w={{ base: 'full', md: 'auto' }}>
+            <Tabs.Trigger value="owned" flex={{ base: '1', md: 'unset' }} justifyContent="center">
               My Collections {owned ? `(${owned.length})` : ''}
             </Tabs.Trigger>
-            <Tabs.Trigger value="shared">
+            <Tabs.Trigger value="shared" flex={{ base: '1', md: 'unset' }} justifyContent="center">
               Shared with me {shared ? `(${shared.length})` : ''}
             </Tabs.Trigger>
           </Tabs.List>
@@ -80,7 +83,7 @@ export default function Collections() {
         {showCreate && (
           <Box mb={6} p={4} borderWidth="1px" borderRadius="md" bg="gray.50">
             <form onSubmit={handleCreate}>
-              <HStack gap={2}>
+              <Flex gap={2} direction={{ base: 'column', sm: 'row' }}>
                 <Input
                   placeholder="Collection name"
                   value={newName}
@@ -88,9 +91,11 @@ export default function Collections() {
                   required
                   autoFocus
                 />
-                <Button type="submit" colorPalette="green" loading={createCollection.isPending}>Create</Button>
-                <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
-              </HStack>
+                <HStack gap={2} justify="end">
+                  <Button type="submit" colorPalette="green" loading={createCollection.isPending}>Create</Button>
+                  <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+                </HStack>
+              </Flex>
             </form>
           </Box>
         )}

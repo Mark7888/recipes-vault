@@ -152,7 +152,7 @@ export default function Admin() {
         <Heading size="md" mb={4}>Invite Links</Heading>
 
         <form onSubmit={handleCreateInvite}>
-          <HStack mb={4} gap={2}>
+          <HStack mb={4} gap={2} flexWrap="wrap">
             <Input
               placeholder="Description (optional)"
               value={inviteDesc}
@@ -183,6 +183,7 @@ export default function Admin() {
                 borderTopWidth={i > 0 ? '1px' : 0}
                 justify="space-between"
                 bg={inv.used ? 'gray.50' : 'white'}
+                flexWrap="wrap"
               >
                 <VStack align="start" gap={0}>
                   <Text fontSize="sm" fontWeight="medium" color={inv.used ? 'gray.400' : 'gray.800'}>
@@ -217,6 +218,8 @@ export default function Admin() {
                   px={4} py={3}
                   borderTopWidth={i > 0 ? '1px' : 0}
                   justify="space-between"
+                  flexWrap="wrap"
+                  gap={2}
                 >
                   <VStack align="start" gap={0}>
                     <Text fontWeight="medium">{user.username}</Text>

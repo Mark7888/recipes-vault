@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Badge, Box, Button, Grid, Heading, HStack, Input, Spinner, Text, VStack,
+  Badge, Box, Button, Flex, Grid, Heading, HStack, Input, Spinner, Text, VStack,
 } from '@chakra-ui/react';
 import { useParams, Link } from 'react-router-dom';
 import { useCollection, useRemoveRecipeFromCollection } from '../hooks/useCollections';
@@ -44,12 +44,12 @@ export default function CollectionView() {
 
   return (
     <Box py={4}>
-      <HStack justify="space-between" mb={6} align="start">
+      <Flex justify="space-between" mb={6} align="start" direction={{ base: 'column', sm: 'row' }} gap={3}>
         <VStack align="start" gap={1}>
           <Heading size="lg">{collection.name}</Heading>
           <Text fontSize="sm" color="gray.500">{collection.members.length} members</Text>
         </VStack>
-        <HStack gap={2}>
+        <HStack gap={2} align="start" flexWrap="wrap">
           {isOwner && (
             <ShareCollectionPanel
               collectionId={id!}
@@ -63,7 +63,7 @@ export default function CollectionView() {
             </Link>
           )}
         </HStack>
-      </HStack>
+      </Flex>
 
       {/* Search + adder filter */}
       <VStack align="start" gap={3} mb={6}>
@@ -71,6 +71,7 @@ export default function CollectionView() {
           placeholder="Search recipes…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          w="full"
           maxW="400px"
         />
         {adders.length > 1 && (
@@ -100,7 +101,10 @@ export default function CollectionView() {
       </VStack>
 
       {filteredRecipes.length > 0 ? (
-        <Grid templateColumns="repeat(auto-fill, minmax(240px, 1fr))" gap={4}>
+        <Grid
+          templateColumns={{ base: 'repeat(auto-fill, minmax(150px, 1fr))', md: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+          gap={{ base: 3, md: 4 }}
+        >
           {filteredRecipes.map((rc) => {
             if (!rc.recipe) return null;
             const canRemove = isOwner || rc.addedById === user?.id;

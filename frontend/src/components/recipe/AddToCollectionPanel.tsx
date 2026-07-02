@@ -22,7 +22,7 @@ export function AddToCollectionPanel({ recipeId }: Props) {
   );
 
   return (
-    <Box>
+    <Box w="full">
       <Button
         size="sm"
         variant="outline"
@@ -33,7 +33,7 @@ export function AddToCollectionPanel({ recipeId }: Props) {
       </Button>
 
       {open && (
-        <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden">
+        <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden" maxW="480px">
           <Box px={3} py={2} borderBottomWidth="1px" bg="gray.50">
             <Input
               size="sm"

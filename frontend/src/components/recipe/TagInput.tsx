@@ -5,9 +5,10 @@ import { useTags } from '../../hooks/useTags';
 interface Props {
   value: string[];
   onChange: (tags: string[]) => void;
+  placeholder?: string;
 }
 
-export function TagInput({ value, onChange }: Props) {
+export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props) {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -87,7 +88,7 @@ export function TagInput({ value, onChange }: Props) {
             minW="100px"
             flex="1"
             size="sm"
-            placeholder={value.length === 0 ? 'Add tags...' : ''}
+            placeholder={value.length === 0 ? placeholder : ''}
             css={{ boxShadow: 'none !important' }}
           />
         </HStack>

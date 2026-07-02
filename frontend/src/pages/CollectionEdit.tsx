@@ -12,6 +12,7 @@ import {
 } from '../hooks/useCollections';
 import { useAuthStore } from '../store/authStore';
 import { MemberRow } from '../components/collection/MemberRow';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import type { Role } from '../types';
 
 export default function CollectionEdit() {
@@ -25,6 +26,8 @@ export default function CollectionEdit() {
   const removeMember = useRemoveCollectionMember();
 
   const [name, setName] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (!collection) {
@@ -52,8 +55,8 @@ export default function CollectionEdit() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this collection? Recipes will NOT be deleted.')) return;
     await deleteCollection.mutateAsync(id!);
+    setConfirmDelete(false);
     navigate('/collections');
   };
 
@@ -61,9 +64,10 @@ export default function CollectionEdit() {
     await updateRole.mutateAsync({ id: id!, userId, role });
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!window.confirm('Remove this member?')) return;
-    await removeMember.mutateAsync({ id: id!, userId });
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
+    await removeMember.mutateAsync({ id: id!, userId: memberToRemove });
+    setMemberToRemove(null);
   };
 
   return (
@@ -99,7 +103,7 @@ export default function CollectionEdit() {
                 currentUserId={user!.id}
                 isOwner={myRole === 'OWNER'}
                 onRoleChange={handleRoleChange}
-                onRemove={handleRemoveMember}
+                onRemove={(userId) => setMemberToRemove(userId)}
               />
             ))}
           </VStack>
@@ -107,7 +111,7 @@ export default function CollectionEdit() {
 
         <Box w="full" borderTopWidth="1px" pt={4}>
           <Heading size="sm" mb={3} color="red.500">Danger Zone</Heading>
-          <Button colorPalette="red" variant="outline" onClick={handleDelete} loading={deleteCollection.isPending}>
+          <Button colorPalette="red" variant="outline" onClick={() => setConfirmDelete(true)}>
             Delete Collection
           </Button>
           <Text fontSize="sm" color="gray.500" mt={2}>
@@ -115,6 +119,24 @@ export default function CollectionEdit() {
           </Text>
         </Box>
       </VStack>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete collection?"
+        message={`"${collection.name}" will be deleted. Recipes will NOT be deleted — they remain in their owners' libraries.`}
+        loading={deleteCollection.isPending}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
+      <ConfirmDialog
+        open={memberToRemove !== null}
+        title="Remove member?"
+        message={`${collection.members.find((m) => m.userId === memberToRemove)?.user.username ?? 'This member'} will lose access to this collection.`}
+        confirmLabel="Remove"
+        loading={removeMember.isPending}
+        onConfirm={handleRemoveMember}
+        onCancel={() => setMemberToRemove(null)}
+      />
     </Box>
   );
 }

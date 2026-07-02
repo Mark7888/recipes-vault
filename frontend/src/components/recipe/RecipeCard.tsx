@@ -35,9 +35,9 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
         h="full"
       >
         {coverUrl ? (
-          <Image src={coverUrl} alt={recipe.title} h="160px" w="full" objectFit="cover" />
+          <Image src={coverUrl} alt={recipe.title} h={{ base: '110px', md: '160px' }} w="full" objectFit="cover" />
         ) : (
-          <Box h="160px" bg="gray.100" display="flex" alignItems="center" justifyContent="center">
+          <Box h={{ base: '110px', md: '160px' }} bg="gray.100" display="flex" alignItems="center" justifyContent="center">
             <Text fontSize="4xl">🍴</Text>
           </Box>
         )}
@@ -62,7 +62,7 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
               <Badge colorPalette="gray" size="sm">+{recipe.tags.length - 3}</Badge>
             )}
           </HStack>
-          <HStack gap={3} fontSize="sm" color="gray.500">
+          <HStack gap={3} rowGap={0} fontSize="sm" color="gray.500" flexWrap="wrap">
             {recipe.prepTime && <Text>{recipe.prepTime}m prep</Text>}
             {recipe.cookTime && <Text>{recipe.cookTime}m cook</Text>}
             {recipe.servings && <Text>{recipe.servings} servings</Text>}

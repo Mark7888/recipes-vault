@@ -3,11 +3,12 @@ import {
   Box, Button, Heading, HStack, Input, VStack, Text, Textarea, Spinner
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useRecipe, useUpdateRecipe, useRecipeImages } from '../hooks/useRecipes';
+import { useRecipe, useUpdateRecipe, useDeleteRecipe, useRecipeImages } from '../hooks/useRecipes';
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { TagInput } from '../components/recipe/TagInput';
 import { ImagePicker } from '../components/recipe/ImagePicker';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import type { Ingredient, Instruction } from '../types';
 
 // Matches a leading number (including fractions/decimals) and an optional fused unit suffix, e.g. "80g" → ["80","g"], "2" → ["2",""]
@@ -32,8 +33,10 @@ export default function RecipeEdit() {
   const { data: recipe, isLoading } = useRecipe(id!);
   const { data: images } = useRecipeImages(id!, { pollUntilLoaded: true });
   const updateRecipe = useUpdateRecipe();
+  const deleteRecipe = useDeleteRecipe();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [title, setTitle] = useState('');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -104,6 +107,12 @@ export default function RecipeEdit() {
     setInstructions(updated);
   };
 
+  const handleDelete = async () => {
+    await deleteRecipe.mutateAsync(recipe.id);
+    setConfirmDelete(false);
+    navigate('/recipes');
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError('');
@@ -132,13 +141,23 @@ export default function RecipeEdit() {
   return (
     <Box maxW="800px" mx="auto" py={6}>
       <VStack align="start" gap={6}>
-        <HStack justify="space-between" w="full">
+        <HStack justify="space-between" w="full" flexWrap="wrap" gap={2}>
           <Heading size="lg">Edit Recipe</Heading>
           <HStack gap={2}>
+            <Button variant="ghost" colorPalette="red" onClick={() => setConfirmDelete(true)}>Delete</Button>
             <Button variant="ghost" onClick={() => navigate(`/recipes/${recipe.id}`)}>Cancel</Button>
             <Button colorPalette="green" onClick={handleSave} loading={saving}>Save</Button>
           </HStack>
         </HStack>
+
+        <ConfirmDialog
+          open={confirmDelete}
+          title="Delete recipe?"
+          message={`"${title || recipe.title}" will be permanently deleted. This cannot be undone.`}
+          loading={deleteRecipe.isPending}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
 
         {saveError && (
           <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
@@ -157,7 +176,7 @@ export default function RecipeEdit() {
         </Box>
 
         <Box w="full" borderTopWidth="1px" pt={4}>
-          <HStack justify="space-between" mb={3}>
+          <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
             <Heading size="sm">Ingredients</Heading>
             <HStack gap={2}>
               {ingredients.some(ing => ing.amount === '' && ing.name?.includes(' ')) && (
@@ -170,19 +189,19 @@ export default function RecipeEdit() {
           </HStack>
           <VStack gap={2}>
             {ingredients.map((ing, i) => (
-              <HStack key={i} gap={2} w="full">
+              <HStack key={i} gap={{ base: 1, sm: 2 }} w="full">
                 <Input
                   placeholder="Amount"
                   value={ing.amount}
                   onChange={(e) => updateIngredient(i, 'amount', e.target.value)}
-                  w="80px"
+                  w={{ base: '56px', sm: '80px' }}
                   size="sm"
                 />
                 <Input
                   placeholder="Unit"
                   value={ing.unit}
                   onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                  w="80px"
+                  w={{ base: '56px', sm: '80px' }}
                   size="sm"
                 />
                 <Input
