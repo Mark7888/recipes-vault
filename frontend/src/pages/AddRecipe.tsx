@@ -1,19 +1,29 @@
 import { useState } from 'react';
-import { Box, Button, Heading, Input, VStack, Text } from '@chakra-ui/react';
+import { Box, Button, Heading, HStack, Input, VStack, Text } from '@chakra-ui/react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCaptureRecipe } from '../hooks/useRecipes';
+import { useCaptureRecipe, useCreateRecipe } from '../hooks/useRecipes';
 
 export default function AddRecipe() {
   const [searchParams] = useSearchParams();
   const [url, setUrl] = useState(searchParams.get('url') ?? '');
   const navigate = useNavigate();
   const capture = useCaptureRecipe();
+  const createRecipe = useCreateRecipe();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const result = await capture.mutateAsync(url);
       navigate(`/recipes/${result.recipeId}/edit`);
+    } catch {
+      // error shown below
+    }
+  };
+
+  const handleCreateEmpty = async () => {
+    try {
+      const recipe = await createRecipe.mutateAsync(undefined);
+      navigate(`/recipes/${recipe.id}/edit`);
     } catch {
       // error shown below
     }
@@ -50,6 +60,25 @@ export default function AddRecipe() {
             </Button>
           </VStack>
         </form>
+        <HStack w="full" gap={3}>
+          <Box flex="1" borderTopWidth="1px" />
+          <Text fontSize="sm" color="gray.500">or</Text>
+          <Box flex="1" borderTopWidth="1px" />
+        </HStack>
+        {createRecipe.isError && (
+          <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
+            <Text color="red.600" fontSize="sm">Failed to create recipe. Please try again.</Text>
+          </Box>
+        )}
+        <Button
+          variant="outline"
+          colorPalette="green"
+          w="full"
+          onClick={handleCreateEmpty}
+          loading={createRecipe.isPending}
+        >
+          Start with an empty recipe
+        </Button>
       </VStack>
     </Box>
   );

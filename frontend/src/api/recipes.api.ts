@@ -11,6 +11,9 @@ export const recipesApi = {
   get: (id: string) =>
     apiClient.get<Recipe>(`/recipes/${id}`).then(r => r.data),
 
+  create: (title?: string) =>
+    apiClient.post<Recipe>('/recipes', { title }).then(r => r.data),
+
   patch: (id: string, data: Partial<Recipe>) =>
     apiClient.patch<Recipe>(`/recipes/${id}`, data).then(r => r.data),
 

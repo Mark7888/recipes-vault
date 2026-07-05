@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   listRecipes,
+  postRecipe,
   getRecipe,
   patchRecipe,
   removeRecipe,
@@ -19,6 +20,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 const router = Router();
 router.use(authMiddleware);
 router.get('/', listRecipes);
+router.post('/', postRecipe);
 router.get('/sites', listRecipeSites);
 router.get('/:id', getRecipe);
 router.patch('/:id', patchRecipe);

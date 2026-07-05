@@ -65,6 +65,16 @@ export function useDeleteRecipe() {
   });
 }
 
+export function useCreateRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (title?: string) => recipesApi.create(title),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: recipeKeys.all });
+    },
+  });
+}
+
 export function useCaptureRecipe() {
   const qc = useQueryClient();
   return useMutation({

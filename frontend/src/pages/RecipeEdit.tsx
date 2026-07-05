@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Heading, HStack, Input, VStack, Text, Textarea, Spinner
 } from '@chakra-ui/react';
@@ -49,8 +49,12 @@ export default function RecipeEdit() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  // Populate the form only on first load of each recipe: image uploads invalidate
+  // the recipe query, and the refetch must not overwrite unsaved edits.
+  const initializedRecipeId = useRef<string | null>(null);
   useEffect(() => {
-    if (recipe) {
+    if (recipe && initializedRecipeId.current !== recipe.id) {
+      initializedRecipeId.current = recipe.id;
       setTitle(recipe.title);
       setIngredients(recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }]);
       setInstructions(recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }]);

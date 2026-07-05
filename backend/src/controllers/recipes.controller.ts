@@ -32,6 +32,21 @@ export async function listRecipeSites(req: Request, res: Response): Promise<void
   res.json(sites);
 }
 
+export async function postRecipe(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  try {
+    const { title } = z.object({ title: z.string().optional() }).parse(req.body ?? {});
+    const recipe = await createRecipe(userId, {
+      title: title?.trim() || 'Untitled Recipe',
+      ingredients: [],
+      instructions: [],
+    });
+    res.status(201).json(recipe);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
 export async function getRecipe(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
