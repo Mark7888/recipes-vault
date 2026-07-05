@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Box, Button, Heading, Input, VStack, Text } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCaptureRecipe } from '../hooks/useRecipes';
 
 export default function AddRecipe() {
-  const [url, setUrl] = useState('');
+  const [searchParams] = useSearchParams();
+  const [url, setUrl] = useState(searchParams.get('url') ?? '');
   const navigate = useNavigate();
   const capture = useCaptureRecipe();
 

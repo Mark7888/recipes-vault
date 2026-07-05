@@ -39,6 +39,23 @@ export function createApp() {
   app.use('/api/users', usersRoutes);
   app.use('/api/capture', captureRoutes);
 
+  // PWA share target (see share_target in the web app manifest). Android puts
+  // the shared link in `text` (sometimes `url` or `title`), so scan all three
+  // for the first http(s) URL and funnel it into the URL-prefix capture
+  // catch-all below, which already handles auth and the capture itself.
+  app.get('/share', (req: Request, res: Response) => {
+    const candidates = [req.query.url, req.query.text, req.query.title];
+    for (const value of candidates) {
+      if (typeof value !== 'string') continue;
+      const match = /https?:\/\/\S+/.exec(value);
+      if (match) {
+        res.redirect('/' + match[0].replace(/^https?:\/\//, ''));
+        return;
+      }
+    }
+    res.redirect('/recipes/add');
+  });
+
   // URL-prefix capture catch-all
   // Pattern: /<domain>/<path> where domain looks like a real domain (has a dot + TLD)
   const domainPattern = /^\/([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+)(\/.*)?$/;
