@@ -22,7 +22,9 @@ from PIL import Image
 SOURCE = Path("misc/icon.png")
 OUT_DIR = Path("frontend/public")
 
-BACKGROUND = (255, 255, 255)  # source art sits on a white background
+# Flat background used only where the format can't have transparency
+# (Apple touch icons and maskable icons render transparent areas as black).
+BACKGROUND = (255, 255, 255)
 PWA_SIZES = (192, 512)
 APPLE_TOUCH_SIZE = 180
 MASKABLE_SIZE = 512
@@ -33,13 +35,13 @@ FAVICON_SIZES = [(16, 16), (32, 32), (48, 48)]
 
 
 def load_square_source() -> Image.Image:
-    img = Image.open(SOURCE).convert("RGB")
+    img = Image.open(SOURCE).convert("RGBA")
     if img.width == img.height:
         return img
-    # Pad the shorter side with the background color to make it square
+    # Pad the shorter side with transparency to make it square
     side = max(img.size)
-    canvas = Image.new("RGB", (side, side), BACKGROUND)
-    canvas.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    canvas.paste(img, ((side - img.width) // 2, (side - img.height) // 2), img)
     return canvas
 
 
@@ -47,11 +49,19 @@ def resized(img: Image.Image, size: int) -> Image.Image:
     return img.resize((size, size), Image.LANCZOS)
 
 
+def flattened(img: Image.Image) -> Image.Image:
+    """Composite onto an opaque background for formats that can't have transparency."""
+    canvas = Image.new("RGB", img.size, BACKGROUND)
+    canvas.paste(img, (0, 0), img)
+    return canvas
+
+
 def maskable(img: Image.Image, size: int) -> Image.Image:
     canvas = Image.new("RGB", (size, size), BACKGROUND)
     inner = round(size * MASKABLE_SAFE_ZONE)
     offset = (size - inner) // 2
-    canvas.paste(img.resize((inner, inner), Image.LANCZOS), (offset, offset))
+    icon = img.resize((inner, inner), Image.LANCZOS)
+    canvas.paste(icon, (offset, offset), icon)
     return canvas
 
 
@@ -68,7 +78,7 @@ def main() -> None:
         print(f"wrote {path}")
 
     path = OUT_DIR / "apple-touch-icon.png"
-    resized(src, APPLE_TOUCH_SIZE).save(path, optimize=True)
+    flattened(resized(src, APPLE_TOUCH_SIZE)).save(path, optimize=True)
     print(f"wrote {path}")
 
     path = OUT_DIR / f"maskable-icon-{MASKABLE_SIZE}x{MASKABLE_SIZE}.png"
