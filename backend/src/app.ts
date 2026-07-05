@@ -39,6 +39,12 @@ export function createApp() {
   app.use('/api/users', usersRoutes);
   app.use('/api/capture', captureRoutes);
 
+  // Serve frontend static assets before the capture catch-all: root-level
+  // files like /favicon.ico or /manifest.webmanifest would otherwise match
+  // the domain pattern below and be treated as recipe URLs to capture.
+  const publicDir = path.join(__dirname, '..', 'public');
+  app.use(express.static(publicDir));
+
   // PWA share target (see share_target in the web app manifest). Android puts
   // the shared link in `text` (sometimes `url` or `title`), so scan all three
   // for the first http(s) URL and funnel it into the URL-prefix capture
@@ -106,9 +112,7 @@ export function createApp() {
     next();
   });
 
-  // Serve frontend SPA (in production)
-  const publicDir = path.join(__dirname, '..', 'public');
-  app.use(express.static(publicDir));
+  // SPA fallback for all remaining routes (in production)
   app.get('/{*path}', (_req: Request, res: Response) => {
     res.sendFile(path.join(publicDir, 'index.html'));
   });
