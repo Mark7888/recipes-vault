@@ -11,14 +11,18 @@ datasource db {
 }
 
 model User {
-  id              String   @id @default(uuid())
-  username        String   @unique
+  id              String     @id @default(uuid())
+  username        String     @unique
   passwordHash    String
-  createdAt       DateTime @default(now())
+  status          UserStatus @default(ACTIVE)
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
   recipes         Recipe[]
   memberships     CollectionMembership[]
   passwordResets  PasswordResetLink[]
   addedToCollections RecipeCollection[] @relation("AddedBy")
+
+  @@index([status])
 }
 
 model Recipe {
@@ -98,6 +102,7 @@ model InviteLink {
   token       String    @unique
   description String
   used        Boolean   @default(false)
+  revokedAt   DateTime?
   createdAt   DateTime  @default(now())
 }
 
@@ -114,4 +119,14 @@ enum Role {
   OWNER
   EDITOR
   VIEWER
+}
+
+// ACTIVE -> PENDING_DELETION (admin marks; user is locked out immediately)
+// PENDING_DELETION -> DELETED (cleanup worker has removed the user's content;
+// the row survives only as an anonymized tombstone when shared content still
+// references it, otherwise it is deleted outright)
+enum UserStatus {
+  ACTIVE
+  PENDING_DELETION
+  DELETED
 }

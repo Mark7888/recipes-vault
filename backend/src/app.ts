@@ -89,7 +89,7 @@ export function createApp() {
           try {
             const payload = verifyRefreshToken(refreshToken);
             const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-            if (user) userId = user.id;
+            if (user && user.status === 'ACTIVE') userId = user.id;
           } catch {
             // fall through to redirect-to-login below
           }

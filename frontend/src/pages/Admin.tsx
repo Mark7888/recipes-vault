@@ -2,10 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Button, Heading, Input, VStack, HStack, Text, Badge, Container,
 } from '@chakra-ui/react';
-import { adminApi } from '../api/admin.api';
-
-interface User { id: string; username: string; createdAt: string; }
-interface Invite { id: string; token: string; description: string; used: boolean; createdAt: string; }
+import { adminApi, type AdminUser, type AdminInvite } from '../api/admin.api';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const TOKEN_KEY = 'adminToken';
 
@@ -32,13 +30,16 @@ export default function Admin() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [invites, setInvites] = useState<AdminInvite[]>([]);
   const [inviteDesc, setInviteDesc] = useState('');
   const [newInviteUrl, setNewInviteUrl] = useState('');
   const [resetUrls, setResetUrls] = useState<Record<string, string>>({});
   const [inviteLoading, setInviteLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState<Record<string, boolean>>({});
+  const [revokeLoading, setRevokeLoading] = useState<Record<string, boolean>>({});
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const loadData = useCallback(async (t: string) => {
     try {
@@ -91,6 +92,28 @@ export default function Admin() {
       setResetUrls(prev => ({ ...prev, [userId]: `${window.location.origin}/reset-password?token=${link.token}` }));
     } finally {
       setResetLoading(prev => ({ ...prev, [userId]: false }));
+    }
+  }
+
+  async function handleRevokeInvite(inviteId: string) {
+    setRevokeLoading(prev => ({ ...prev, [inviteId]: true }));
+    try {
+      await adminApi.revokeInvite(token, inviteId);
+      await loadData(token);
+    } finally {
+      setRevokeLoading(prev => ({ ...prev, [inviteId]: false }));
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!userToDelete) return;
+    setDeleteLoading(true);
+    try {
+      await adminApi.deleteUser(token, userToDelete.id);
+      setUserToDelete(null);
+      await loadData(token);
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -176,31 +199,45 @@ export default function Admin() {
           {invites.length === 0 ? (
             <Box p={4}><Text color="gray.500" fontSize="sm">No invite links yet.</Text></Box>
           ) : (
-            invites.map((inv, i) => (
-              <HStack
-                key={inv.id}
-                px={4} py={3}
-                borderTopWidth={i > 0 ? '1px' : 0}
-                justify="space-between"
-                bg={inv.used ? 'gray.50' : 'white'}
-                flexWrap="wrap"
-              >
-                <VStack align="start" gap={0}>
-                  <Text fontSize="sm" fontWeight="medium" color={inv.used ? 'gray.400' : 'gray.800'}>
-                    {inv.description}
-                  </Text>
-                  <Text fontSize="xs" color="gray.400" fontFamily="mono">{inv.token}</Text>
-                </VStack>
-                <HStack gap={3}>
-                  <Badge colorPalette={inv.used ? 'gray' : 'green'} size="sm">
-                    {inv.used ? 'Used' : 'Active'}
-                  </Badge>
-                  <Text fontSize="xs" color="gray.400">
-                    {new Date(inv.createdAt).toLocaleDateString()}
-                  </Text>
+            invites.map((inv, i) => {
+              const inactive = inv.used || !!inv.revokedAt;
+              return (
+                <HStack
+                  key={inv.id}
+                  px={4} py={3}
+                  borderTopWidth={i > 0 ? '1px' : 0}
+                  justify="space-between"
+                  bg={inactive ? 'gray.50' : 'white'}
+                  flexWrap="wrap"
+                >
+                  <VStack align="start" gap={0}>
+                    <Text fontSize="sm" fontWeight="medium" color={inactive ? 'gray.400' : 'gray.800'}>
+                      {inv.description}
+                    </Text>
+                    <Text fontSize="xs" color="gray.400" fontFamily="mono">{inv.token}</Text>
+                  </VStack>
+                  <HStack gap={3}>
+                    <Badge colorPalette={inv.used ? 'gray' : inv.revokedAt ? 'red' : 'green'} size="sm">
+                      {inv.used ? 'Used' : inv.revokedAt ? 'Revoked' : 'Active'}
+                    </Badge>
+                    <Text fontSize="xs" color="gray.400">
+                      {new Date(inv.createdAt).toLocaleDateString()}
+                    </Text>
+                    {!inactive && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        colorPalette="red"
+                        loading={revokeLoading[inv.id]}
+                        onClick={() => handleRevokeInvite(inv.id)}
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </HStack>
                 </HStack>
-              </HStack>
-            ))
+              );
+            })
           )}
         </Box>
       </Box>
@@ -222,20 +259,37 @@ export default function Admin() {
                   gap={2}
                 >
                   <VStack align="start" gap={0}>
-                    <Text fontWeight="medium">{user.username}</Text>
+                    <HStack gap={2}>
+                      <Text fontWeight="medium">{user.username}</Text>
+                      {user.status === 'PENDING_DELETION' && (
+                        <Badge colorPalette="red" size="sm">Deleting…</Badge>
+                      )}
+                    </HStack>
                     <Text fontSize="xs" color="gray.400">
                       Joined {new Date(user.createdAt).toLocaleDateString()}
                     </Text>
                   </VStack>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    colorPalette="orange"
-                    loading={resetLoading[user.id]}
-                    onClick={() => handleCreateReset(user.id)}
-                  >
-                    Generate Reset Link
-                  </Button>
+                  {user.status === 'ACTIVE' && (
+                    <HStack gap={2}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorPalette="orange"
+                        loading={resetLoading[user.id]}
+                        onClick={() => handleCreateReset(user.id)}
+                      >
+                        Generate Reset Link
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorPalette="red"
+                        onClick={() => setUserToDelete(user)}
+                      >
+                        Delete
+                      </Button>
+                    </HStack>
+                  )}
                 </HStack>
                 {resetUrls[user.id] && (
                   <Box px={4} pb={3}>
@@ -250,6 +304,15 @@ export default function Admin() {
           )}
         </Box>
       </Box>
+
+      <ConfirmDialog
+        open={!!userToDelete}
+        title="Delete user"
+        message={`Delete ${userToDelete?.username ?? ''}? Their recipes in shared collections and collections shared with others are kept; everything else is removed. This cannot be undone.`}
+        loading={deleteLoading}
+        onConfirm={handleDeleteUser}
+        onCancel={() => setUserToDelete(null)}
+      />
     </Box>
   );
 }

@@ -2,6 +2,10 @@ import axios from 'axios';
 import { apiClient } from './client';
 
 export const authApi = {
+  checkInvite: (token: string) =>
+    apiClient.get(`/auth/invites/${encodeURIComponent(token)}`)
+      .then(r => r.data as { valid: boolean; reason?: 'not_found' | 'revoked' | 'used' }),
+
   register: (token: string, username: string, password: string) =>
     apiClient.post('/auth/register', { token, username, password }).then(r => r.data),
 

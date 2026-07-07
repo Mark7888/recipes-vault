@@ -8,7 +8,7 @@ import {
   verifyRefreshToken,
   passwordSchema,
 } from '../services/auth.service.js';
-import { consumeInviteLink } from '../services/invite.service.js';
+import { consumeInviteLink, getInviteTokenStatus } from '../services/invite.service.js';
 import { consumePasswordResetLink } from '../services/password-reset.service.js';
 import { z } from 'zod';
 
@@ -36,6 +36,13 @@ const resetPasswordSchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8),
 });
+
+export async function checkInvite(req: Request, res: Response): Promise<void> {
+  const params = z.object({ token: z.string().min(1) }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: 'Invalid token' }); return; }
+  const status = await getInviteTokenStatus(params.data.token);
+  res.json({ valid: status === 'valid', reason: status === 'valid' ? undefined : status });
+}
 
 export async function register(req: Request, res: Response): Promise<void> {
   const parsed = registerSchema.safeParse(req.body);
@@ -70,7 +77,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const { username, password } = parsed.data;
   const user = await prisma.user.findUnique({ where: { username } });
-  if (!user || !(await verifyPassword(user.passwordHash, password))) {
+  if (!user || user.status !== 'ACTIVE' || !(await verifyPassword(user.passwordHash, password))) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -88,7 +95,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   try {
     const payload = verifyRefreshToken(token);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) { res.status(401).json({ error: 'User not found' }); return; }
+    if (!user || user.status !== 'ACTIVE') { res.status(401).json({ error: 'User not found' }); return; }
 
     const accessToken = signAccessToken(user.id);
     res.json({ accessToken });

@@ -15,7 +15,7 @@ export async function searchUsers(req: Request, res: Response): Promise<void> {
   const q = ((req.query.q as string) || '').trim();
   if (q.length < 2) { res.json([]); return; }
   const users = await prisma.user.findMany({
-    where: { username: { contains: q, mode: 'insensitive' }, id: { not: currentUserId } },
+    where: { username: { contains: q, mode: 'insensitive' }, id: { not: currentUserId }, status: 'ACTIVE' },
     select: { id: true, username: true },
     take: 10,
   });

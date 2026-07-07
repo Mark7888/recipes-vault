@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { queryClient } from '../lib/queryClient';
 
 interface AuthUser {
   id: string;
@@ -16,12 +17,20 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
-      setAuth: (user, accessToken) => set({ user, accessToken }),
+      setAuth: (user, accessToken) => {
+        // Cached queries belong to the previous account; without this a newly
+        // logged-in user sees the old user's recipes until a refetch lands.
+        if (get().user?.id !== user.id) queryClient.clear();
+        set({ user, accessToken });
+      },
       setToken: (accessToken) => set({ accessToken }),
-      logout: () => set({ user: null, accessToken: null }),
+      logout: () => {
+        set({ user: null, accessToken: null });
+        queryClient.clear();
+      },
     }),
     {
       name: 'auth-storage',

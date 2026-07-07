@@ -1,13 +1,17 @@
 import type { Request, Response } from 'express';
+import { UserStatus } from '@prisma/client';
 import { verifyAdminCredentials, signAdminToken } from '../services/admin-auth.service.js';
-import { createInviteLink, listInviteLinks } from '../services/invite.service.js';
+import { createInviteLink, listInviteLinks, revokeInviteLink } from '../services/invite.service.js';
 import { createPasswordResetLink } from '../services/password-reset.service.js';
+import { markUserForDeletion } from '../services/user-deletion.service.js';
+import { kickUserCleanup } from '../workers/user-cleanup.worker.js';
 import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
 
 export async function listUsers(_req: Request, res: Response): Promise<void> {
   const users = await prisma.user.findMany({
-    select: { id: true, username: true, createdAt: true },
+    where: { status: { not: UserStatus.DELETED } },
+    select: { id: true, username: true, status: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   });
   res.json(users);
@@ -48,10 +52,40 @@ export async function createPasswordReset(req: Request, res: Response): Promise<
   try {
     const { userId } = z.object({ userId: z.string().uuid() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!user || user.status !== UserStatus.ACTIVE) { res.status(404).json({ error: 'User not found' }); return; }
     const link = await createPasswordResetLink(userId);
     res.status(201).json(link);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+}
+
+const idParamSchema = z.object({ id: z.string().uuid() });
+
+export async function revokeInvite(req: Request, res: Response): Promise<void> {
+  const params = idParamSchema.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: 'Invalid id' }); return; }
+  try {
+    const link = await revokeInviteLink(params.data.id);
+    res.json(link);
+  } catch (err) {
+    const message = (err as Error).message;
+    res.status(message === 'Invite link not found' ? 404 : 409).json({ error: message });
+  }
+}
+
+export async function deleteUser(req: Request, res: Response): Promise<void> {
+  const params = idParamSchema.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { id } = params.data;
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user || user.status === UserStatus.DELETED) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const marked = await markUserForDeletion(id);
+  if (marked) kickUserCleanup();
+  // Not marked means it was already pending — either way deletion is underway.
+  res.status(202).json({ status: UserStatus.PENDING_DELETION });
 }

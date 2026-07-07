@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Heading, Input, VStack, Text, Container } from '@chakra-ui/react';
+import { Box, Button, Heading, Input, VStack, Text, Container, Spinner } from '@chakra-ui/react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
+
+const INVITE_ERROR_MESSAGES: Record<string, string> = {
+  not_found: 'This invite link is invalid.',
+  revoked: 'This invite link has been revoked.',
+  used: 'This invite link has already been used.',
+};
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Password must be at least 8 characters';
@@ -27,11 +33,24 @@ export default function Register() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // null = still checking; '' = valid; anything else = message to show instead of the form
+  const [inviteError, setInviteError] = useState<string | null>(token ? null : 'Invalid or missing invite token.');
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!token) setError('Invalid or missing invite token.');
+    if (!token) return;
+    let cancelled = false;
+    authApi.checkInvite(token)
+      .then(({ valid, reason }) => {
+        if (cancelled) return;
+        setInviteError(valid ? '' : INVITE_ERROR_MESSAGES[reason ?? ''] ?? 'This invite link is invalid.');
+      })
+      .catch(() => {
+        // Can't verify (e.g. offline) — let the user try; register still validates.
+        if (!cancelled) setInviteError('');
+      });
+    return () => { cancelled = true; };
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +78,10 @@ export default function Register() {
         <Box bg="white" p={8} borderRadius="xl" shadow="md">
           <VStack gap={6}>
             <Heading size="lg" color="green.700">🍳 Create Account</Heading>
-            {!token ? (
-              <ErrorBox message="Invalid or missing invite token." />
+            {inviteError === null ? (
+              <Spinner color="green.600" />
+            ) : inviteError ? (
+              <ErrorBox message={inviteError} />
             ) : (
               <form onSubmit={handleSubmit} style={{ width: '100%' }}>
                 <VStack gap={4}>
