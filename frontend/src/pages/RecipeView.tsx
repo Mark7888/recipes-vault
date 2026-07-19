@@ -7,6 +7,7 @@ import { useRecipe, useDeleteRecipe } from '../hooks/useRecipes';
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { IngredientList } from '../components/recipe/IngredientList';
+import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
 import { AddToCollectionPanel } from '../components/recipe/AddToCollectionPanel';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -20,6 +21,20 @@ export default function RecipeView() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  // Ingredients checked as "already have at home" — the rest go to the shopping list
+  const [haveAtHome, setHaveAtHome] = useState<Set<number>>(new Set());
+  const [addedToList, setAddedToList] = useState(false);
+  const addShoppingItems = useAddShoppingItems();
+
+  const toggleHaveAtHome = (i: number) => {
+    setHaveAtHome((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+    setAddedToList(false);
+  };
 
   const copyShareUrl = async (url: string) => {
     try {
@@ -145,7 +160,38 @@ export default function RecipeView() {
 
         <Box w="full" borderTopWidth="1px" pt={6}>
           <Heading size="md" mb={4}>Ingredients</Heading>
-          <IngredientList ingredients={recipe.ingredients} />
+          <IngredientList ingredients={recipe.ingredients} checked={haveAtHome} onToggle={toggleHaveAtHome} />
+          {recipe.ingredients.length > 0 && (() => {
+            const missing = recipe.ingredients.filter((_, i) => !haveAtHome.has(i));
+            const handleAddToShoppingList = async () => {
+              await addShoppingItems.mutateAsync(
+                missing.map((ing) => ({
+                  name: ing.name,
+                  amount: ing.amount,
+                  unit: ing.unit,
+                  recipeId: recipe.id,
+                }))
+              );
+              setAddedToList(true);
+            };
+            return (
+              <VStack align="start" gap={1} mt={4}>
+                <Text fontSize="xs" color="gray.500">
+                  Check what you already have at home, then add the rest to your shopping list.
+                </Text>
+                <Button
+                  size="sm"
+                  colorPalette="green"
+                  variant="outline"
+                  disabled={missing.length === 0 || addedToList}
+                  loading={addShoppingItems.isPending}
+                  onClick={handleAddToShoppingList}
+                >
+                  {addedToList ? '✓ Added to shopping list' : `🛒 Add ${missing.length} missing to shopping list`}
+                </Button>
+              </VStack>
+            );
+          })()}
         </Box>
 
         <Box w="full" borderTopWidth="1px" pt={6}>

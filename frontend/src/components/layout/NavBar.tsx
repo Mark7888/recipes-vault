@@ -25,6 +25,7 @@ export function NavBar() {
         <HStack gap={4} hideBelow="md">
           <Link to="/recipes" style={desktopLinkStyle}>My Recipes</Link>
           <Link to="/collections" style={desktopLinkStyle}>Collections</Link>
+          <Link to="/shopping" style={desktopLinkStyle}>Shopping</Link>
           <Link to="/recipes/add" style={desktopLinkStyle}>+ Add Recipe</Link>
           <Popover.Root positioning={{ placement: 'bottom-end' }}>
             <Popover.Trigger asChild>

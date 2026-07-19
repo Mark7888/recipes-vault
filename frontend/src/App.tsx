@@ -14,6 +14,7 @@ import MyCollections from './pages/MyCollections';
 import CollectionView from './pages/CollectionView';
 import CollectionEdit from './pages/CollectionEdit';
 import Settings from './pages/Settings';
+import ShoppingList from './pages/ShoppingList';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="collections/shared" element={<Navigate to="/collections" replace />} />
           <Route path="collections/:id" element={<CollectionView />} />
           <Route path="collections/:id/edit" element={<CollectionEdit />} />
+          <Route path="shopping" element={<ShoppingList />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

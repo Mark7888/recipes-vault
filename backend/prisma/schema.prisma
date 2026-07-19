@@ -22,6 +22,8 @@ model User {
   passwordResets  PasswordResetLink[]
   addedToCollections RecipeCollection[] @relation("AddedBy")
   usedInvite      InviteLink? @relation("InviteUsedBy")
+  shoppingItems   ShoppingListItem[]
+  shoppingHistory ShoppingHistoryEntry[]
 
   @@index([status])
 }
@@ -46,6 +48,7 @@ model Recipe {
   images        Image[]  @relation("RecipeImages")
   tags          Tag[]
   collections   RecipeCollection[]
+  shoppingItems ShoppingListItem[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -98,6 +101,37 @@ model Image {
   filePath      String
   isCover       Boolean  @default(false)
   coverOfRecipe Recipe?  @relation("CoverImage")
+}
+
+model ShoppingListItem {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  amount      String   @default("")
+  unit        String   @default("")
+  // false = still to buy, true = in the "done" section awaiting Clear
+  bought      Boolean  @default(false)
+  // Source recipe; null for manually added items. recipeTitle is a snapshot
+  // so grouping keeps working after the recipe is deleted (recipeId nulls out).
+  recipeId    String?
+  recipe      Recipe?  @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  recipeTitle String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ShoppingHistoryEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Snapshot of the bought items at Clear time:
+  // [{ name, amount, unit, recipeId?, recipeTitle? }]
+  items     Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model InviteLink {

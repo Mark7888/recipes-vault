@@ -18,6 +18,16 @@ function CollectionsIcon() {
   );
 }
 
+function CartIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  );
+}
+
 function AddIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,6 +51,7 @@ const items = [
   { to: '/recipes', label: 'Recipes', icon: <RecipesIcon />, isActive: (p: string) => p.startsWith('/recipes') && p !== '/recipes/add' },
   { to: '/collections', label: 'Collections', icon: <CollectionsIcon />, isActive: (p: string) => p.startsWith('/collections') },
   { to: '/recipes/add', label: 'Add', icon: <AddIcon />, isActive: (p: string) => p === '/recipes/add' },
+  { to: '/shopping', label: 'Shopping', icon: <CartIcon />, isActive: (p: string) => p.startsWith('/shopping') },
   { to: '/settings', label: 'User', icon: <UserIcon />, isActive: (p: string) => p.startsWith('/settings') },
 ];
 

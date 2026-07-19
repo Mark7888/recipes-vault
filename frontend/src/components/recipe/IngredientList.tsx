@@ -4,13 +4,19 @@ import type { Ingredient } from '../../types';
 
 interface Props {
   ingredients: Ingredient[];
+  // Optional controlled mode (RecipeView uses the checked state as "I have
+  // this at home" for the shopping list); uncontrolled otherwise.
+  checked?: Set<number>;
+  onToggle?: (index: number) => void;
 }
 
-export function IngredientList({ ingredients }: Props) {
-  const [checked, setChecked] = useState<Set<number>>(new Set());
+export function IngredientList({ ingredients, checked: checkedProp, onToggle }: Props) {
+  const [internalChecked, setInternalChecked] = useState<Set<number>>(new Set());
+  const checked = checkedProp ?? internalChecked;
 
   const toggle = (i: number) => {
-    setChecked((prev) => {
+    if (onToggle) { onToggle(i); return; }
+    setInternalChecked((prev) => {
       const next = new Set(prev);
       if (next.has(i)) next.delete(i);
       else next.add(i);

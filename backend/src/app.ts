@@ -11,6 +11,7 @@ import collectionsRoutes from './routes/collections.routes.js';
 import tagsRoutes from './routes/tags.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import sharedRoutes from './routes/shared.routes.js';
+import shoppingListRoutes from './routes/shopping-list.routes.js';
 import captureRoutes, { captureAndCreateRecipe } from './routes/capture.routes.js';
 import { verifyRefreshToken } from './services/auth.service.js';
 import { prisma } from './lib/prisma.js';
@@ -39,6 +40,7 @@ export function createApp() {
   app.use('/api/tags', tagsRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/shared', sharedRoutes);
+  app.use('/api/shopping-list', shoppingListRoutes);
   app.use('/api/capture', captureRoutes);
 
   // Serve frontend static assets before the capture catch-all: root-level

@@ -49,6 +49,31 @@ export interface Recipe {
   updatedAt: string;
 }
 
+export interface ShoppingListItem {
+  id: string;
+  name: string;
+  amount: string;
+  unit: string;
+  bought: boolean;
+  recipeId: string | null;
+  recipeTitle: string | null;
+  createdAt: string;
+}
+
+export interface ShoppingHistoryItem {
+  name: string;
+  amount: string;
+  unit: string;
+  recipeId: string | null;
+  recipeTitle: string | null;
+}
+
+export interface ShoppingHistoryEntry {
+  id: string;
+  items: ShoppingHistoryItem[];
+  createdAt: string;
+}
+
 export type Role = 'OWNER' | 'EDITOR' | 'VIEWER';
 
 export interface CollectionMember {
