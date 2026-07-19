@@ -21,6 +21,7 @@ model User {
   memberships     CollectionMembership[]
   passwordResets  PasswordResetLink[]
   addedToCollections RecipeCollection[] @relation("AddedBy")
+  usedInvite      InviteLink? @relation("InviteUsedBy")
 
   @@index([status])
 }
@@ -102,17 +103,25 @@ model InviteLink {
   token       String    @unique
   description String
   used        Boolean   @default(false)
+  // Who registered with this link. Null on links used before this field
+  // existed (or when that user was since deleted) — shown as "unknown".
+  usedById    String?   @unique
+  usedBy      User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())
 }
 
 model PasswordResetLink {
-  id        String   @id @default(uuid())
-  token     String   @unique
+  id        String    @id @default(uuid())
+  token     String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  used      Boolean  @default(false)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  used      Boolean   @default(false)
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
   expiresAt DateTime
+
+  @@index([userId])
 }
 
 enum Role {

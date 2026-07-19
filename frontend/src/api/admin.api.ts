@@ -14,8 +14,19 @@ export interface AdminInvite {
   token: string;
   description: string;
   used: boolean;
+  usedBy: { username: string } | null;
   revokedAt: string | null;
   createdAt: string;
+}
+
+export interface AdminPasswordReset {
+  id: string;
+  token: string;
+  user: { username: string };
+  used: boolean;
+  revokedAt: string | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export const adminApi = {
@@ -39,4 +50,10 @@ export const adminApi = {
 
   createPasswordReset: (token: string, userId: string) =>
     axios.post('/api/admin/password-resets', { userId }, auth(token)).then(r => r.data as { token: string }),
+
+  getPasswordResets: (token: string) =>
+    axios.get('/api/admin/password-resets', auth(token)).then(r => r.data as AdminPasswordReset[]),
+
+  revokePasswordReset: (token: string, resetId: string) =>
+    axios.delete(`/api/admin/password-resets/${resetId}`, auth(token)).then(r => r.data as AdminPasswordReset),
 };

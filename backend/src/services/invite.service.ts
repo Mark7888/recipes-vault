@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 
 export async function createInviteLink(description: string) {
@@ -7,7 +8,10 @@ export async function createInviteLink(description: string) {
 }
 
 export async function listInviteLinks() {
-  return prisma.inviteLink.findMany({ orderBy: { createdAt: 'desc' } });
+  return prisma.inviteLink.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { usedBy: { select: { username: true } } },
+  });
 }
 
 export type InviteTokenStatus = 'valid' | 'not_found' | 'revoked' | 'used';
@@ -20,15 +24,19 @@ export async function getInviteTokenStatus(token: string): Promise<InviteTokenSt
   return 'valid';
 }
 
-export async function consumeInviteLink(token: string) {
-  const link = await prisma.inviteLink.findUnique({ where: { token } });
+export async function consumeInviteLink(
+  token: string,
+  usedById: string,
+  db: Prisma.TransactionClient = prisma,
+) {
+  const link = await db.inviteLink.findUnique({ where: { token } });
   if (!link) throw new Error('Invite link not found');
   if (link.used) throw new Error('Invite link already used');
   if (link.revokedAt) throw new Error('Invite link has been revoked');
   // Conditional update so two concurrent registrations can't both consume it.
-  const { count } = await prisma.inviteLink.updateMany({
+  const { count } = await db.inviteLink.updateMany({
     where: { id: link.id, used: false, revokedAt: null },
-    data: { used: true },
+    data: { used: true, usedById },
   });
   if (count === 0) throw new Error('Invite link already used');
   return link;

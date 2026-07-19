@@ -2,10 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Button, Heading, Input, VStack, HStack, Text, Badge, Container,
 } from '@chakra-ui/react';
-import { adminApi, type AdminUser, type AdminInvite } from '../api/admin.api';
+import { adminApi, type AdminUser, type AdminInvite, type AdminPasswordReset } from '../api/admin.api';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const TOKEN_KEY = 'adminToken';
+
+function resetStatus(reset: AdminPasswordReset): { label: string; color: string } {
+  if (reset.used) return { label: 'Used', color: 'gray' };
+  if (reset.revokedAt) return { label: 'Revoked', color: 'red' };
+  if (new Date(reset.expiresAt) < new Date()) return { label: 'Expired', color: 'orange' };
+  return { label: 'Active', color: 'green' };
+}
 
 function CopyBox({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -32,6 +39,7 @@ export default function Admin() {
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [invites, setInvites] = useState<AdminInvite[]>([]);
+  const [resets, setResets] = useState<AdminPasswordReset[]>([]);
   const [inviteDesc, setInviteDesc] = useState('');
   const [newInviteUrl, setNewInviteUrl] = useState('');
   const [resetUrls, setResetUrls] = useState<Record<string, string>>({});
@@ -43,9 +51,14 @@ export default function Admin() {
 
   const loadData = useCallback(async (t: string) => {
     try {
-      const [u, i] = await Promise.all([adminApi.getUsers(t), adminApi.getInvites(t)]);
+      const [u, i, r] = await Promise.all([
+        adminApi.getUsers(t),
+        adminApi.getInvites(t),
+        adminApi.getPasswordResets(t),
+      ]);
       setUsers(u);
       setInvites(i);
+      setResets(r);
     } catch {
       sessionStorage.removeItem(TOKEN_KEY);
       setToken('');
@@ -90,6 +103,7 @@ export default function Admin() {
     try {
       const link = await adminApi.createPasswordReset(token, userId);
       setResetUrls(prev => ({ ...prev, [userId]: `${window.location.origin}/reset-password?token=${link.token}` }));
+      await loadData(token);
     } finally {
       setResetLoading(prev => ({ ...prev, [userId]: false }));
     }
@@ -102,6 +116,16 @@ export default function Admin() {
       await loadData(token);
     } finally {
       setRevokeLoading(prev => ({ ...prev, [inviteId]: false }));
+    }
+  }
+
+  async function handleRevokeReset(resetId: string) {
+    setRevokeLoading(prev => ({ ...prev, [resetId]: true }));
+    try {
+      await adminApi.revokePasswordReset(token, resetId);
+      await loadData(token);
+    } finally {
+      setRevokeLoading(prev => ({ ...prev, [resetId]: false }));
     }
   }
 
@@ -122,6 +146,7 @@ export default function Admin() {
     setToken('');
     setUsers([]);
     setInvites([]);
+    setResets([]);
     setNewInviteUrl('');
     setResetUrls({});
   }
@@ -209,12 +234,20 @@ export default function Admin() {
                   justify="space-between"
                   bg={inactive ? 'gray.50' : 'white'}
                   flexWrap="wrap"
+                  gap={2}
                 >
-                  <VStack align="start" gap={0}>
-                    <Text fontSize="sm" fontWeight="medium" color={inactive ? 'gray.400' : 'gray.800'}>
-                      {inv.description}
-                    </Text>
-                    <Text fontSize="xs" color="gray.400" fontFamily="mono">{inv.token}</Text>
+                  <VStack align="start" gap={0} minW="0">
+                    <HStack gap={2} flexWrap="wrap">
+                      <Text fontSize="sm" fontWeight="medium" color={inactive ? 'gray.400' : 'gray.800'}>
+                        {inv.description}
+                      </Text>
+                      {inv.used && (
+                        <Badge colorPalette="gray" size="sm" fontStyle={inv.usedBy ? undefined : 'italic'}>
+                          {inv.usedBy?.username ?? 'unknown'}
+                        </Badge>
+                      )}
+                    </HStack>
+                    <Text fontSize="xs" color="gray.400" fontFamily="mono" wordBreak="break-all">{inv.token}</Text>
                   </VStack>
                   <HStack gap={3}>
                     <Badge colorPalette={inv.used ? 'gray' : inv.revokedAt ? 'red' : 'green'} size="sm">
@@ -301,6 +334,58 @@ export default function Admin() {
                 )}
               </Box>
             ))
+          )}
+        </Box>
+      </Box>
+
+      {/* Password Reset Links */}
+      <Box mt={10}>
+        <Heading size="md" mb={4}>Password Reset Links</Heading>
+        <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
+          {resets.length === 0 ? (
+            <Box p={4}><Text color="gray.500" fontSize="sm">No password reset links yet.</Text></Box>
+          ) : (
+            resets.map((reset, i) => {
+              const status = resetStatus(reset);
+              const active = status.label === 'Active';
+              return (
+                <HStack
+                  key={reset.id}
+                  px={4} py={3}
+                  borderTopWidth={i > 0 ? '1px' : 0}
+                  justify="space-between"
+                  bg={active ? 'white' : 'gray.50'}
+                  flexWrap="wrap"
+                  gap={2}
+                >
+                  <VStack align="start" gap={0} minW="0">
+                    <Text fontSize="sm" fontWeight="medium" color={active ? 'gray.800' : 'gray.400'}>
+                      {reset.user.username}
+                    </Text>
+                    <Text fontSize="xs" color="gray.400" fontFamily="mono" wordBreak="break-all">{reset.token}</Text>
+                  </VStack>
+                  <HStack gap={3}>
+                    <Badge colorPalette={status.color} size="sm">{status.label}</Badge>
+                    <Text fontSize="xs" color="gray.400">
+                      {active
+                        ? `Expires ${new Date(reset.expiresAt).toLocaleString()}`
+                        : new Date(reset.createdAt).toLocaleDateString()}
+                    </Text>
+                    {active && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        colorPalette="red"
+                        loading={revokeLoading[reset.id]}
+                        onClick={() => handleRevokeReset(reset.id)}
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </HStack>
+                </HStack>
+              );
+            })
           )}
         </Box>
       </Box>

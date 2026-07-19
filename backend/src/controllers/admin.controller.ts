@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { UserStatus } from '@prisma/client';
 import { verifyAdminCredentials, signAdminToken } from '../services/admin-auth.service.js';
 import { createInviteLink, listInviteLinks, revokeInviteLink } from '../services/invite.service.js';
-import { createPasswordResetLink } from '../services/password-reset.service.js';
+import { createPasswordResetLink, listPasswordResetLinks, revokePasswordResetLink } from '../services/password-reset.service.js';
 import { markUserForDeletion } from '../services/user-deletion.service.js';
 import { kickUserCleanup } from '../workers/user-cleanup.worker.js';
 import { prisma } from '../lib/prisma.js';
@@ -57,6 +57,23 @@ export async function createPasswordReset(req: Request, res: Response): Promise<
     res.status(201).json(link);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function getPasswordResets(_req: Request, res: Response): Promise<void> {
+  const links = await listPasswordResetLinks();
+  res.json(links);
+}
+
+export async function revokePasswordReset(req: Request, res: Response): Promise<void> {
+  const params = idParamSchema.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: 'Invalid id' }); return; }
+  try {
+    const link = await revokePasswordResetLink(params.data.id);
+    res.json(link);
+  } catch (err) {
+    const message = (err as Error).message;
+    res.status(message === 'Reset link not found' ? 404 : 409).json({ error: message });
   }
 }
 

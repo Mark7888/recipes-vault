@@ -52,18 +52,27 @@ export async function register(req: Request, res: Response): Promise<void> {
   const passwordError = passwordSchema.validate(password);
   if (passwordError) { res.status(400).json({ error: passwordError }); return; }
 
-  try {
-    await consumeInviteLink(token);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-    return;
-  }
-
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) { res.status(409).json({ error: 'Username already taken' }); return; }
 
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({ data: { username, passwordHash } });
+  let user;
+  try {
+    // One transaction so a rejected invite doesn't leave a user behind and a
+    // failed user creation doesn't burn the invite.
+    user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({ data: { username, passwordHash } });
+      await consumeInviteLink(token, created.id, tx);
+      return created;
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ error: 'Username already taken' });
+      return;
+    }
+    res.status(400).json({ error: (err as Error).message });
+    return;
+  }
 
   const accessToken = signAccessToken(user.id);
   const refreshToken = signRefreshToken(user.id);
