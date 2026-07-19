@@ -37,6 +37,8 @@ model Recipe {
   cookTime      Int?
   servings      Int?
   notes         String?
+  // Public share permalink token; anyone with it can view the recipe unauthenticated.
+  shareToken    String?  @unique
   ownerId       String
   owner         User     @relation(fields: [ownerId], references: [id])
   coverImageId  String?  @unique

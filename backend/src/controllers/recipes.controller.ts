@@ -9,6 +9,8 @@ import {
   setRecipeTags,
   isRecipeAccessibleByUser,
   getRecipeSitesForUser,
+  getOrCreateShareToken,
+  getRecipeByShareToken,
 } from '../services/recipes.service.js';
 import { getCollectionIdsContainingRecipe } from '../services/collections.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
@@ -150,6 +152,23 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+}
+
+export async function shareRecipe(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  const recipe = await getRecipeById(id);
+  if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
+  if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+  const token = await getOrCreateShareToken(recipe.id);
+  res.json({ token });
+}
+
+export async function getSharedRecipe(req: Request, res: Response): Promise<void> {
+  const token = req.params.token as string;
+  const recipe = await getRecipeByShareToken(token);
+  if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
+  res.json(recipe);
 }
 
 export async function getRecipeCollections(req: Request, res: Response): Promise<void> {

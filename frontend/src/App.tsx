@@ -7,6 +7,7 @@ import ResetPassword from './pages/ResetPassword';
 import Admin from './pages/Admin';
 import AddRecipe from './pages/AddRecipe';
 import RecipeView from './pages/RecipeView';
+import SharedRecipe from './pages/SharedRecipe';
 import RecipeEdit from './pages/RecipeEdit';
 import MyRecipes from './pages/MyRecipes';
 import MyCollections from './pages/MyCollections';
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/shared/:token" element={<SharedRecipe />} />
         <Route
           path="/"
           element={

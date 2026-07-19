@@ -1,9 +1,10 @@
 import {
-  Box, Button, Flex, Heading, HStack, Text, VStack, Badge, Spinner, Image
+  Box, Button, Flex, Heading, HStack, Input, Text, VStack, Badge, Spinner, Image
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useRecipe, useDeleteRecipe } from '../hooks/useRecipes';
+import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { IngredientList } from '../components/recipe/IngredientList';
 import { StepList } from '../components/recipe/StepList';
@@ -17,6 +18,27 @@ export default function RecipeView() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const copyShareUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable (http origin, permissions) — the visible link
+      // input below is the fallback.
+    }
+  };
+
+  const handleShare = async () => {
+    if (shareUrl) { setShareUrl(null); return; }
+    const { token } = await recipesApi.share(id!);
+    const url = `${window.location.origin}/shared/${token}`;
+    setShareUrl(url);
+    void copyShareUrl(url);
+  };
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (isError || !recipe) {
@@ -62,6 +84,9 @@ export default function RecipeView() {
           </VStack>
           {isOwner && (
             <HStack gap={2}>
+              <Button size="sm" colorPalette="blue" variant="outline" onClick={handleShare}>
+                🔗 Share
+              </Button>
               <Link to={`/recipes/${recipe.id}/edit`}>
                 <Button size="sm" colorPalette="green" variant="outline">✏️ Edit</Button>
               </Link>
@@ -79,6 +104,24 @@ export default function RecipeView() {
             </HStack>
           )}
         </Flex>
+
+        {shareUrl && (
+          <Box w="full" p={3} bg="blue.50" borderRadius="md" borderWidth="1px" borderColor="blue.200">
+            <Text fontSize="sm" mb={2}>Anyone with this link can view the recipe, no login needed:</Text>
+            <HStack gap={2}>
+              <Input
+                size="sm"
+                bg="white"
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button size="sm" colorPalette="blue" onClick={() => void copyShareUrl(shareUrl)}>
+                {shareCopied ? 'Copied!' : 'Copy'}
+              </Button>
+            </HStack>
+          </Box>
+        )}
 
         <AddToCollectionPanel recipeId={recipe.id} />
 

@@ -41,6 +41,12 @@ export const recipesApi = {
   capture: (url: string) =>
     apiClient.post<{ recipeId: string }>('/capture', { url }).then(r => r.data),
 
+  share: (id: string) =>
+    apiClient.post<{ token: string }>(`/recipes/${id}/share`).then(r => r.data),
+
+  getShared: (token: string) =>
+    apiClient.get<Recipe>(`/shared/${token}`).then(r => r.data),
+
   getCollections: (id: string) =>
     apiClient.get<{ collectionId: string; addedById: string }[]>(`/recipes/${id}/collections`).then(r => r.data),
 };

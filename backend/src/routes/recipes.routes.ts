@@ -13,6 +13,7 @@ import {
   setCoverImage,
   getRecipeCollections,
   listRecipeSites,
+  shareRecipe,
 } from '../controllers/recipes.controller.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 
@@ -31,4 +32,5 @@ router.post('/:id/images', upload.single('image'), uploadImage);
 router.delete('/:id/images/:imageId', removeImage);
 router.patch('/:id/cover-image', setCoverImage);
 router.get('/:id/collections', getRecipeCollections);
+router.post('/:id/share', shareRecipe);
 export default router;

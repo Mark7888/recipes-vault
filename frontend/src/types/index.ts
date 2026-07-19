@@ -38,6 +38,7 @@ export interface Recipe {
   cookTime?: number;
   servings?: number;
   notes?: string;
+  shareToken?: string;
   ownerId: string;
   owner?: { id: string; username: string };
   coverImageId?: string;

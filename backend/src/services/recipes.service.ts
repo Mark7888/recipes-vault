@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import type { Ingredient, Instruction } from '../types/index.js';
 
@@ -90,6 +91,21 @@ export async function setRecipeTags(recipeId: string, tagIds: string[]) {
     where: { id: recipeId },
     data: { tags: { set: tagIds.map(id => ({ id })) } },
     include: { tags: true },
+  });
+}
+
+export async function getOrCreateShareToken(recipeId: string): Promise<string> {
+  const recipe = await prisma.recipe.findUniqueOrThrow({ where: { id: recipeId }, select: { shareToken: true } });
+  if (recipe.shareToken) return recipe.shareToken;
+  const token = randomUUID();
+  await prisma.recipe.update({ where: { id: recipeId }, data: { shareToken: token } });
+  return token;
+}
+
+export async function getRecipeByShareToken(token: string) {
+  return prisma.recipe.findUnique({
+    where: { shareToken: token },
+    include: { tags: true, images: true, coverImage: true, owner: { select: { id: true, username: true } } },
   });
 }
 
