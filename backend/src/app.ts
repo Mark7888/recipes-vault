@@ -47,7 +47,20 @@ export function createApp() {
   // files like /favicon.ico or /manifest.webmanifest would otherwise match
   // the domain pattern below and be treated as recipe URLs to capture.
   const publicDir = path.join(__dirname, '..', 'public');
-  app.use(express.static(publicDir));
+  app.use(express.static(publicDir, {
+    setHeaders: (res, filePath) => {
+      const base = path.basename(filePath);
+      // The SW update flow depends on the browser (and Cloudflare) always
+      // revalidating these entry points; everything under /assets and the
+      // workbox runtime carry content hashes in their names, so they can be
+      // cached forever.
+      if (base === 'sw.js' || base === 'index.html' || base === 'manifest.webmanifest') {
+        res.setHeader('Cache-Control', 'no-cache');
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`) || /^workbox-.+\.js$/.test(base)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
 
   // PWA share target (see share_target in the web app manifest). Android puts
   // the shared link in `text` (sometimes `url` or `title`), so scan all three
@@ -118,6 +131,7 @@ export function createApp() {
 
   // SPA fallback for all remaining routes (in production)
   app.get('/{*path}', (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(publicDir, 'index.html'));
   });
 

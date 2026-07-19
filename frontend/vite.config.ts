@@ -8,7 +8,11 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
-        registerType: 'autoUpdate',
+        // 'prompt': a new SW installs but stays waiting until the user accepts
+        // the in-app "New version available" banner (UpdatePrompt), which then
+        // messages it to skipWaiting and reloads. Auto-activating instead would
+        // swap caches under a page whose old JS chunks are still in memory.
+        registerType: 'prompt',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         manifest: {
           name: 'RecipeVault',
@@ -53,6 +57,8 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // The unminified development bundle exceeds the 2 MiB default
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          // Delete precaches left behind by older Workbox versions on activate
+          cleanupOutdatedCaches: true,
           // Never serve the SPA shell for paths the backend must handle:
           // the API, stored images, the share target, and the URL-prefix
           // capture catch-all (/<domain.tld>/...).
