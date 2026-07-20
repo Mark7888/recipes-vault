@@ -3,6 +3,8 @@ import { Box, Button, Heading, Input, VStack, Text, Container } from '@chakra-ui
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
+import { PasswordInput } from '../components/ui/PasswordInput';
+import { getErrorMessage } from '../utils/errors';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -30,8 +32,7 @@ export default function Login() {
         navigate('/recipes');
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Login failed');
+      setError(getErrorMessage(err, 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -56,8 +57,7 @@ export default function Login() {
                 </Box>
                 <Box w="full">
                   <Text mb={1} fontWeight="medium" fontSize="sm">Password</Text>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"

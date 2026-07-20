@@ -8,6 +8,8 @@ import { useAuthStore } from '../store/authStore';
 import { RecipeCard } from '../components/recipe/RecipeCard';
 import { ShareCollectionPanel } from '../components/collection/ShareCollectionPanel';
 
+const ADDERS_VISIBLE_LIMIT = 8;
+
 export default function CollectionView() {
   const { id } = useParams<{ id: string }>();
   const { data: collection, isLoading } = useCollection(id!);
@@ -15,6 +17,7 @@ export default function CollectionView() {
   const removeRecipe = useRemoveRecipeFromCollection();
   const [search, setSearch] = useState('');
   const [adderFilter, setAdderFilter] = useState<string | null>(null);
+  const [showAllAdders, setShowAllAdders] = useState(false);
 
   const adders = useMemo(() => {
     const map = new Map<string, string>();
@@ -85,7 +88,7 @@ export default function CollectionView() {
             >
               All
             </Badge>
-            {adders.map((a) => (
+            {(showAllAdders ? adders : adders.slice(0, ADDERS_VISIBLE_LIMIT)).map((a) => (
               <Badge
                 key={a.id}
                 cursor="pointer"
@@ -96,6 +99,11 @@ export default function CollectionView() {
                 {a.username}
               </Badge>
             ))}
+            {!showAllAdders && adders.length > ADDERS_VISIBLE_LIMIT && (
+              <Badge cursor="pointer" colorPalette="gray" variant="subtle" onClick={() => setShowAllAdders(true)}>
+                +{adders.length - ADDERS_VISIBLE_LIMIT} more
+              </Badge>
+            )}
           </HStack>
         )}
       </VStack>

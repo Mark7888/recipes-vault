@@ -15,7 +15,10 @@ import {
   useDeleteHistory,
 } from '../hooks/useShoppingList';
 import { addAmounts } from '../utils/amounts';
+import { formatDate } from '../utils/date';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Checkbox } from '../components/ui/Checkbox';
+import { CartIcon, CloseIcon, EditIcon, UndoIcon } from '../components/ui/icons';
 
 const MANUAL_LABEL = 'Manual';
 
@@ -43,27 +46,6 @@ function mergeItems(items: ShoppingListItem[]): MergedLine[] {
     }
   }
   return [...lines.values()];
-}
-
-function CheckBox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
-  return (
-    <Box
-      w="18px"
-      h="18px"
-      borderWidth="2px"
-      borderRadius="sm"
-      borderColor={checked ? 'green.500' : 'gray.300'}
-      bg={checked ? 'green.500' : 'white'}
-      flexShrink={0}
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
-      cursor="pointer"
-      onClick={onToggle}
-    >
-      {checked && <Text fontSize="11px" color="white" fontWeight="bold">✓</Text>}
-    </Box>
-  );
 }
 
 function itemLabel(name: string, amount: string, unit: string) {
@@ -106,7 +88,7 @@ function TodoRow({
 
   return (
     <HStack w="full" gap={3} py={1}>
-      <CheckBox checked={selected} onToggle={onToggleSelect} />
+      <Checkbox checked={selected} onToggle={onToggleSelect} />
       {editing ? (
         <ItemEditor item={item} onDone={() => setEditing(false)} />
       ) : (
@@ -117,7 +99,7 @@ function TodoRow({
               {item.recipeTitle ?? MANUAL_LABEL}
             </Badge>
           )}
-          <Button size="xs" variant="ghost" onClick={() => setEditing(true)}>✏️</Button>
+          <Button size="xs" variant="ghost" onClick={() => setEditing(true)}><EditIcon size={14} /></Button>
           <Button
             size="xs"
             variant="ghost"
@@ -125,7 +107,7 @@ function TodoRow({
             loading={deleteItem.isPending}
             onClick={() => deleteItem.mutate(item.id)}
           >
-            ✕
+            <CloseIcon size={14} />
           </Button>
         </>
       )}
@@ -148,7 +130,7 @@ function MergedRow({
 
   return (
     <HStack w="full" gap={3} py={1}>
-      <CheckBox checked={selected} onToggle={() => onToggleSelect(ids)} />
+      <Checkbox checked={selected} onToggle={() => onToggleSelect(ids)} />
       {editing && single ? (
         <ItemEditor item={line.items[0]} onDone={() => setEditing(false)} />
       ) : (
@@ -157,7 +139,7 @@ function MergedRow({
           {line.sources.map((s) => (
             <Badge key={s} colorPalette={s === MANUAL_LABEL ? 'gray' : 'green'} fontSize="10px">{s}</Badge>
           ))}
-          {single && <Button size="xs" variant="ghost" onClick={() => setEditing(true)}>✏️</Button>}
+          {single && <Button size="xs" variant="ghost" onClick={() => setEditing(true)}><EditIcon size={14} /></Button>}
           <Button
             size="xs"
             variant="ghost"
@@ -165,7 +147,7 @@ function MergedRow({
             loading={deleteItem.isPending}
             onClick={() => ids.forEach(id => deleteItem.mutate(id))}
           >
-            ✕
+            <CloseIcon size={14} />
           </Button>
         </>
       )}
@@ -187,10 +169,12 @@ function AddItemForm() {
     setUnit('');
   };
 
+  const submitOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') void submit(); };
+
   return (
     <HStack w="full" gap={2} flexWrap="wrap">
-      <Input size="sm" w="80px" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      <Input size="sm" w="80px" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+      <Input size="sm" w="80px" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={submitOnEnter} />
+      <Input size="sm" w="80px" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} onKeyDown={submitOnEnter} />
       <Input
         size="sm"
         flex={1}
@@ -198,7 +182,7 @@ function AddItemForm() {
         placeholder="Item name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+        onKeyDown={submitOnEnter}
       />
       <Button size="sm" colorPalette="green" loading={addItem.isPending} onClick={submit}>
         + Add
@@ -245,6 +229,8 @@ function ListTab() {
 
   // Only count selected ids that still exist as unbought items
   const selectedCount = todo.filter(i => selected.has(i.id)).length;
+  const allSelected = todo.length > 0 && selectedCount === todo.length;
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(todo.map(i => i.id)));
 
   const handleBought = async () => {
     const ids = todo.filter(i => selected.has(i.id)).map(i => i.id);
@@ -266,13 +252,21 @@ function ListTab() {
       <AddItemForm />
 
       <Flex w="full" justify="space-between" align="center" flexWrap="wrap" gap={2}>
-        <HStack gap={1}>
-          <Button size="xs" variant={grouped ? 'ghost' : 'solid'} colorPalette="green" onClick={() => setGrouped(false)}>
-            All
-          </Button>
-          <Button size="xs" variant={grouped ? 'solid' : 'ghost'} colorPalette="green" onClick={() => setGrouped(true)}>
-            By recipe
-          </Button>
+        <HStack gap={4}>
+          {todo.length > 0 && (
+            <HStack gap={2}>
+              <Checkbox checked={allSelected} onToggle={toggleSelectAll} size={16} />
+              <Text fontSize="sm" color="gray.500">Select all</Text>
+            </HStack>
+          )}
+          <HStack gap={1}>
+            <Button size="xs" variant={grouped ? 'ghost' : 'solid'} colorPalette="green" onClick={() => setGrouped(false)}>
+              All
+            </Button>
+            <Button size="xs" variant={grouped ? 'solid' : 'ghost'} colorPalette="green" onClick={() => setGrouped(true)}>
+              By recipe
+            </Button>
+          </HStack>
         </HStack>
         <HStack gap={2}>
           <Button
@@ -282,7 +276,7 @@ function ListTab() {
             loading={setBought.isPending}
             onClick={handleBought}
           >
-            🛒 Bought{selectedCount > 0 ? ` (${selectedCount})` : ''}
+            <CartIcon size={14} /> Bought{selectedCount > 0 ? ` (${selectedCount})` : ''}
           </Button>
           <Button
             size="sm"
@@ -353,7 +347,7 @@ function ListTab() {
                   loading={setBought.isPending}
                   onClick={() => setBought.mutate({ ids: line.items.map(i => i.id), bought: false })}
                 >
-                  ↩ Not bought
+                  <UndoIcon size={14} /> Not bought
                 </Button>
               </HStack>
             ))}
@@ -389,14 +383,14 @@ function HistoryCard({ entry, onReadded }: { entry: ShoppingHistoryEntry; onRead
     <Box w="full" p={4} borderWidth="1px" borderRadius="md" bg="white" shadow="sm">
       <Flex justify="space-between" align="center" mb={3} gap={2} flexWrap="wrap">
         <Text fontWeight="semibold">
-          {new Date(entry.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+          {formatDate(entry.createdAt)}
         </Text>
         <HStack gap={2}>
           <Button size="xs" colorPalette="green" variant="outline" loading={readd.isPending} onClick={handleReadd}>
             + Add to shopping list
           </Button>
           <Button size="xs" colorPalette="red" variant="ghost" onClick={() => setConfirmDelete(true)}>
-            ✕
+            <CloseIcon size={14} />
           </Button>
         </HStack>
       </Flex>

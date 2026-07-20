@@ -3,19 +3,16 @@ import { Box, Button, Heading, Input, VStack, Text, Container, Spinner } from '@
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
+import { PasswordInput } from '../components/ui/PasswordInput';
+import { PasswordRequirements } from '../components/ui/PasswordRequirements';
+import { validatePassword } from '../utils/password';
+import { getErrorMessage } from '../utils/errors';
 
 const INVITE_ERROR_MESSAGES: Record<string, string> = {
   not_found: 'This invite link is invalid.',
   revoked: 'This invite link has been revoked.',
   used: 'This invite link has already been used.',
 };
-
-function validatePassword(password: string): string | null {
-  if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
-  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
-  return null;
-}
 
 function ErrorBox({ message }: { message: string }) {
   return (
@@ -65,8 +62,7 @@ export default function Register() {
       setAuth(data.user, data.accessToken);
       navigate('/recipes');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Registration failed');
+      setError(getErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +73,7 @@ export default function Register() {
       <Container maxW="sm">
         <Box bg="white" p={8} borderRadius="xl" shadow="md">
           <VStack gap={6}>
-            <Heading size="lg" color="green.700">🍳 Create Account</Heading>
+            <Heading size="lg" color="green.700">Create Account</Heading>
             {inviteError === null ? (
               <Spinner color="green.600" />
             ) : inviteError ? (
@@ -96,18 +92,17 @@ export default function Register() {
                   </Box>
                   <Box w="full">
                     <Text mb={1} fontWeight="medium" fontSize="sm">Password</Text>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Min 8 chars, 1 uppercase, 1 number"
                       required
                     />
+                    {password.length > 0 && <Box mt={2}><PasswordRequirements password={password} /></Box>}
                   </Box>
                   <Box w="full">
                     <Text mb={1} fontWeight="medium" fontSize="sm">Confirm Password</Text>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
                       required

@@ -1,6 +1,7 @@
-import { VStack, HStack, Text, Box } from '@chakra-ui/react';
+import { VStack, HStack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 import type { Ingredient } from '../../types';
+import { Checkbox } from '../ui/Checkbox';
 
 interface Props {
   ingredients: Ingredient[];
@@ -32,22 +33,7 @@ export function IngredientList({ ingredients, checked: checkedProp, onToggle }: 
     <VStack align="start" gap={2}>
       {ingredients.map((ing, i) => (
         <HStack key={i} gap={3} cursor="pointer" onClick={() => toggle(i)}>
-          <Box
-            w="16px"
-            h="16px"
-            borderWidth="2px"
-            borderRadius="sm"
-            borderColor={checked.has(i) ? 'green.500' : 'gray.300'}
-            bg={checked.has(i) ? 'green.500' : 'white'}
-            flexShrink={0}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-          >
-            {checked.has(i) && (
-              <Text fontSize="10px" color="white" fontWeight="bold">✓</Text>
-            )}
-          </Box>
+          <Checkbox checked={checked.has(i)} onToggle={() => toggle(i)} size={16} />
           <Text
             textDecoration={checked.has(i) ? 'line-through' : 'none'}
             color={checked.has(i) ? 'gray.400' : 'gray.800'}

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { Layout } from './components/layout/Layout';
 import { UpdatePrompt } from './components/ui/UpdatePrompt';
@@ -16,10 +16,15 @@ import CollectionView from './pages/CollectionView';
 import CollectionEdit from './pages/CollectionEdit';
 import Settings from './pages/Settings';
 import ShoppingList from './pages/ShoppingList';
+import NotFound from './pages/NotFound';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
-  if (!user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (!user) {
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?redirect=${redirect}`} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -52,6 +57,7 @@ export default function App() {
           <Route path="collections/:id/edit" element={<CollectionEdit />} />
           <Route path="shopping" element={<ShoppingList />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>

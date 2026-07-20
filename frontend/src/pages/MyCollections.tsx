@@ -48,12 +48,14 @@ function CollectionGrid({ collections, userId }: { collections: ReturnType<typeo
 export default function Collections() {
   const [newName, setNewName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState('');
   const { data: collections, isLoading } = useCollections();
   const createCollection = useCreateCollection();
   const { user } = useAuthStore();
 
-  const owned = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role === 'OWNER'));
-  const shared = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role !== 'OWNER'));
+  const matchesSearch = (name: string) => name.toLowerCase().includes(search.trim().toLowerCase());
+  const owned = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role === 'OWNER') && matchesSearch(c.name));
+  const shared = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role !== 'OWNER') && matchesSearch(c.name));
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +81,14 @@ export default function Collections() {
             + New Collection
           </Button>
         </HStack>
+
+        <Input
+          placeholder="Search collections..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          mb={6}
+          maxW="400px"
+        />
 
         {showCreate && (
           <Box mb={6} p={4} borderWidth="1px" borderRadius="md" bg="gray.50">
@@ -109,7 +119,9 @@ export default function Collections() {
                 <CollectionGrid collections={owned} userId={user!.id} />
               ) : (
                 <Box textAlign="center" py={12}>
-                  <Text color="gray.500">No collections yet. Create your first one!</Text>
+                  <Text color="gray.500">
+                    {search ? 'No collections match your search.' : 'No collections yet. Create your first one!'}
+                  </Text>
                 </Box>
               )}
             </Tabs.Content>
@@ -119,7 +131,9 @@ export default function Collections() {
                 <CollectionGrid collections={shared} userId={user!.id} />
               ) : (
                 <Box textAlign="center" py={12}>
-                  <Text color="gray.500">No collections have been shared with you yet.</Text>
+                  <Text color="gray.500">
+                    {search ? 'No collections match your search.' : 'No collections have been shared with you yet.'}
+                  </Text>
                 </Box>
               )}
             </Tabs.Content>

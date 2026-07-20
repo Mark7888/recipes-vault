@@ -1,4 +1,4 @@
-import { HStack, Text, Button } from '@chakra-ui/react';
+import { HStack, NativeSelect, Text, Button } from '@chakra-ui/react';
 import type { CollectionMember, Role } from '../../types';
 import { RoleBadge } from './RoleBadge';
 
@@ -17,22 +17,17 @@ export function MemberRow({ member, currentUserId, isOwner, onRoleChange, onRemo
       <HStack gap={2}>
         {isOwner && member.userId !== currentUserId ? (
           <>
-            <select
-              value={member.role}
-              onChange={(e) => onRoleChange?.(member.userId, e.target.value as Role)}
-              style={{
-                fontSize: '14px',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: '1px solid #CBD5E0',
-                cursor: 'pointer',
-                background: 'white',
-              }}
-            >
-              <option value="OWNER">OWNER</option>
-              <option value="EDITOR">EDITOR</option>
-              <option value="VIEWER">VIEWER</option>
-            </select>
+            <NativeSelect.Root size="sm" w="auto">
+              <NativeSelect.Field
+                value={member.role}
+                onChange={(e) => onRoleChange?.(member.userId, e.target.value as Role)}
+              >
+                <option value="OWNER">OWNER</option>
+                <option value="EDITOR">EDITOR</option>
+                <option value="VIEWER">VIEWER</option>
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
             <Button
               size="xs"
               variant="ghost"

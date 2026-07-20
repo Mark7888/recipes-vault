@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../api/recipes.api';
 import { collectionsApi } from '../api/collections.api';
 import { collectionKeys } from './useCollections';
+import type { Recipe } from '../types';
 
 export const recipeKeys = {
   all: ['recipes'] as const,
@@ -10,6 +11,7 @@ export const recipeKeys = {
   detail: (id: string) => ['recipes', 'detail', id] as const,
   images: (id: string) => ['recipes', 'images', id] as const,
   collections: (id: string) => ['recipes', 'collections', id] as const,
+  shared: (token: string) => ['recipes', 'shared', token] as const,
 };
 
 export function useRecipes(params?: { search?: string; tags?: string[]; site?: string }) {
@@ -31,6 +33,15 @@ export function useRecipe(id: string) {
     queryKey: recipeKeys.detail(id),
     queryFn: () => recipesApi.get(id),
     enabled: !!id,
+  });
+}
+
+export function useSharedRecipe(token: string) {
+  return useQuery({
+    queryKey: recipeKeys.shared(token),
+    queryFn: () => recipesApi.getShared(token),
+    enabled: !!token,
+    retry: false,
   });
 }
 
@@ -69,6 +80,28 @@ export function useCreateRecipe() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (title?: string) => recipesApi.create(title),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: recipeKeys.all });
+    },
+  });
+}
+
+export function useDuplicateRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (recipe: Recipe) => {
+      const created = await recipesApi.create(`${recipe.title} (copy)`);
+      await recipesApi.patch(created.id, {
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        prepTime: recipe.prepTime,
+        cookTime: recipe.cookTime,
+        servings: recipe.servings,
+        notes: recipe.notes,
+      });
+      if (recipe.tags.length) await recipesApi.setTags(created.id, recipe.tags.map((t) => t.name));
+      return created;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: recipeKeys.all });
     },

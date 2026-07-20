@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Box, HStack, Input, Text, VStack, Spinner } from '@chakra-ui/react';
 import { useTags } from '../../hooks/useTags';
+import { CloseIcon } from '../ui/icons';
 
 interface Props {
   value: string[];
@@ -65,9 +66,9 @@ export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
-                style={{ cursor: 'pointer', color: 'inherit', background: 'none', border: 'none', padding: 0, lineHeight: 1, marginLeft: '4px' }}
+                style={{ cursor: 'pointer', color: 'inherit', background: 'none', border: 'none', padding: 0, lineHeight: 1, marginLeft: '4px', display: 'inline-flex' }}
               >
-                ×
+                <CloseIcon size={10} />
               </button>
             </Box>
           ))}

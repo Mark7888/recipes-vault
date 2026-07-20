@@ -1,9 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Box, Button, Heading, Input, VStack, HStack, Text, Badge, Container,
 } from '@chakra-ui/react';
-import { adminApi, type AdminUser, type AdminInvite, type AdminPasswordReset } from '../api/admin.api';
+import type { AdminUser, AdminInvite, AdminPasswordReset } from '../api/admin.api';
+import {
+  useAdminUsers, useAdminInvites, useAdminPasswordResets, useAdminLogin,
+  useCreateAdminInvite, useRevokeAdminInvite, useCreateAdminPasswordReset,
+  useRevokeAdminPasswordReset, useDeleteAdminUser,
+} from '../hooks/useAdmin';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { PasswordInput } from '../components/ui/PasswordInput';
+import { getErrorMessage } from '../utils/errors';
+import { formatDate, formatDateTime } from '../utils/date';
 
 const TOKEN_KEY = 'adminToken';
 
@@ -35,118 +43,106 @@ export default function Admin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
 
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [invites, setInvites] = useState<AdminInvite[]>([]);
-  const [resets, setResets] = useState<AdminPasswordReset[]>([]);
+  const usersQuery = useAdminUsers(token);
+  const invitesQuery = useAdminInvites(token);
+  const resetsQuery = useAdminPasswordResets(token);
+  const users = usersQuery.data ?? [];
+  const invites = invitesQuery.data ?? [];
+  const resets = resetsQuery.data ?? [];
+
+  const adminLogin = useAdminLogin();
+  const createInvite = useCreateAdminInvite(token);
+  const revokeInvite = useRevokeAdminInvite(token);
+  const createReset = useCreateAdminPasswordReset(token);
+  const revokeReset = useRevokeAdminPasswordReset(token);
+  const deleteUserMutation = useDeleteAdminUser(token);
+
   const [inviteDesc, setInviteDesc] = useState('');
   const [newInviteUrl, setNewInviteUrl] = useState('');
   const [resetUrls, setResetUrls] = useState<Record<string, string>>({});
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState<Record<string, boolean>>({});
-  const [revokeLoading, setRevokeLoading] = useState<Record<string, boolean>>({});
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [inviteToRevoke, setInviteToRevoke] = useState<AdminInvite | null>(null);
+  const [resetToRevoke, setResetToRevoke] = useState<AdminPasswordReset | null>(null);
+  const [actionError, setActionError] = useState('');
 
-  const loadData = useCallback(async (t: string) => {
-    try {
-      const [u, i, r] = await Promise.all([
-        adminApi.getUsers(t),
-        adminApi.getInvites(t),
-        adminApi.getPasswordResets(t),
-      ]);
-      setUsers(u);
-      setInvites(i);
-      setResets(r);
-    } catch {
-      sessionStorage.removeItem(TOKEN_KEY);
-      setToken('');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (token) loadData(token);
-  }, [token, loadData]);
+  // A 401 on any authenticated query means the token is stale — drop back to the login screen.
+  if (token && (usersQuery.isError || invitesQuery.isError || resetsQuery.isError)) {
+    sessionStorage.removeItem(TOKEN_KEY);
+    setToken('');
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError('');
-    setLoginLoading(true);
     try {
-      const { token: t } = await adminApi.login(username, password);
+      const { token: t } = await adminLogin.mutateAsync({ username, password });
       sessionStorage.setItem(TOKEN_KEY, t);
       setToken(t);
     } catch {
       setLoginError('Invalid admin credentials');
-    } finally {
-      setLoginLoading(false);
     }
   }
 
   async function handleCreateInvite(e: React.FormEvent) {
     e.preventDefault();
-    setInviteLoading(true);
+    setActionError('');
     setNewInviteUrl('');
     try {
-      const link = await adminApi.createInvite(token, inviteDesc || undefined);
+      const link = await createInvite.mutateAsync(inviteDesc || undefined);
       setNewInviteUrl(`${window.location.origin}/register?token=${link.token}`);
       setInviteDesc('');
-      await loadData(token);
-    } finally {
-      setInviteLoading(false);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to create invite link.'));
     }
   }
 
   async function handleCreateReset(userId: string) {
-    setResetLoading(prev => ({ ...prev, [userId]: true }));
+    setActionError('');
     try {
-      const link = await adminApi.createPasswordReset(token, userId);
-      setResetUrls(prev => ({ ...prev, [userId]: `${window.location.origin}/reset-password?token=${link.token}` }));
-      await loadData(token);
-    } finally {
-      setResetLoading(prev => ({ ...prev, [userId]: false }));
+      const link = await createReset.mutateAsync(userId);
+      setResetUrls((prev) => ({ ...prev, [userId]: `${window.location.origin}/reset-password?token=${link.token}` }));
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to create reset link.'));
     }
   }
 
-  async function handleRevokeInvite(inviteId: string) {
-    setRevokeLoading(prev => ({ ...prev, [inviteId]: true }));
+  async function handleRevokeInvite() {
+    if (!inviteToRevoke) return;
+    setActionError('');
     try {
-      await adminApi.revokeInvite(token, inviteId);
-      await loadData(token);
-    } finally {
-      setRevokeLoading(prev => ({ ...prev, [inviteId]: false }));
+      await revokeInvite.mutateAsync(inviteToRevoke.id);
+      setInviteToRevoke(null);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to revoke invite link.'));
     }
   }
 
-  async function handleRevokeReset(resetId: string) {
-    setRevokeLoading(prev => ({ ...prev, [resetId]: true }));
+  async function handleRevokeReset() {
+    if (!resetToRevoke) return;
+    setActionError('');
     try {
-      await adminApi.revokePasswordReset(token, resetId);
-      await loadData(token);
-    } finally {
-      setRevokeLoading(prev => ({ ...prev, [resetId]: false }));
+      await revokeReset.mutateAsync(resetToRevoke.id);
+      setResetToRevoke(null);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to revoke reset link.'));
     }
   }
 
   async function handleDeleteUser() {
     if (!userToDelete) return;
-    setDeleteLoading(true);
+    setActionError('');
     try {
-      await adminApi.deleteUser(token, userToDelete.id);
+      await deleteUserMutation.mutateAsync(userToDelete.id);
       setUserToDelete(null);
-      await loadData(token);
-    } finally {
-      setDeleteLoading(false);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to delete user.'));
     }
   }
 
   function handleLogout() {
     sessionStorage.removeItem(TOKEN_KEY);
     setToken('');
-    setUsers([]);
-    setInvites([]);
-    setResets([]);
     setNewInviteUrl('');
     setResetUrls({});
   }
@@ -169,14 +165,14 @@ export default function Admin() {
                   </Box>
                   <Box w="full">
                     <Text mb={1} fontWeight="medium" fontSize="sm">Admin Password</Text>
-                    <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+                    <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required />
                   </Box>
                   {loginError && (
                     <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
                       <Text color="red.600" fontSize="sm">{loginError}</Text>
                     </Box>
                   )}
-                  <Button type="submit" colorPalette="green" w="full" loading={loginLoading}>
+                  <Button type="submit" colorPalette="green" w="full" loading={adminLogin.isPending}>
                     Sign In
                   </Button>
                 </VStack>
@@ -195,6 +191,12 @@ export default function Admin() {
         <Button size="sm" variant="ghost" colorPalette="red" onClick={handleLogout}>Logout</Button>
       </HStack>
 
+      {actionError && (
+        <Box mb={6} p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
+          <Text color="red.600" fontSize="sm">{actionError}</Text>
+        </Box>
+      )}
+
       {/* Invite Links */}
       <Box mb={10}>
         <Heading size="md" mb={4}>Invite Links</Heading>
@@ -207,7 +209,7 @@ export default function Admin() {
               onChange={e => setInviteDesc(e.target.value)}
               maxW="320px"
             />
-            <Button type="submit" colorPalette="green" loading={inviteLoading}>
+            <Button type="submit" colorPalette="green" loading={createInvite.isPending}>
               Create Invite
             </Button>
           </HStack>
@@ -254,15 +256,14 @@ export default function Admin() {
                       {inv.used ? 'Used' : inv.revokedAt ? 'Revoked' : 'Active'}
                     </Badge>
                     <Text fontSize="xs" color="gray.400">
-                      {new Date(inv.createdAt).toLocaleDateString()}
+                      {formatDate(inv.createdAt)}
                     </Text>
                     {!inactive && (
                       <Button
                         size="xs"
                         variant="outline"
                         colorPalette="red"
-                        loading={revokeLoading[inv.id]}
-                        onClick={() => handleRevokeInvite(inv.id)}
+                        onClick={() => setInviteToRevoke(inv)}
                       >
                         Revoke
                       </Button>
@@ -299,7 +300,7 @@ export default function Admin() {
                       )}
                     </HStack>
                     <Text fontSize="xs" color="gray.400">
-                      Joined {new Date(user.createdAt).toLocaleDateString()}
+                      Joined {formatDate(user.createdAt)}
                     </Text>
                   </VStack>
                   {user.status === 'ACTIVE' && (
@@ -308,7 +309,7 @@ export default function Admin() {
                         size="sm"
                         variant="outline"
                         colorPalette="orange"
-                        loading={resetLoading[user.id]}
+                        loading={createReset.isPending && createReset.variables === user.id}
                         onClick={() => handleCreateReset(user.id)}
                       >
                         Generate Reset Link
@@ -368,16 +369,15 @@ export default function Admin() {
                     <Badge colorPalette={status.color} size="sm">{status.label}</Badge>
                     <Text fontSize="xs" color="gray.400">
                       {active
-                        ? `Expires ${new Date(reset.expiresAt).toLocaleString()}`
-                        : new Date(reset.createdAt).toLocaleDateString()}
+                        ? `Expires ${formatDateTime(reset.expiresAt)}`
+                        : formatDate(reset.createdAt)}
                     </Text>
                     {active && (
                       <Button
                         size="xs"
                         variant="outline"
                         colorPalette="red"
-                        loading={revokeLoading[reset.id]}
-                        onClick={() => handleRevokeReset(reset.id)}
+                        onClick={() => setResetToRevoke(reset)}
                       >
                         Revoke
                       </Button>
@@ -394,9 +394,29 @@ export default function Admin() {
         open={!!userToDelete}
         title="Delete user"
         message={`Delete ${userToDelete?.username ?? ''}? Their recipes in shared collections and collections shared with others are kept; everything else is removed. This cannot be undone.`}
-        loading={deleteLoading}
+        loading={deleteUserMutation.isPending}
         onConfirm={handleDeleteUser}
         onCancel={() => setUserToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={!!inviteToRevoke}
+        title="Revoke invite link?"
+        message={`This invite link${inviteToRevoke?.description ? ` ("${inviteToRevoke.description}")` : ''} will no longer work. This cannot be undone.`}
+        confirmLabel="Revoke"
+        loading={revokeInvite.isPending}
+        onConfirm={handleRevokeInvite}
+        onCancel={() => setInviteToRevoke(null)}
+      />
+
+      <ConfirmDialog
+        open={!!resetToRevoke}
+        title="Revoke reset link?"
+        message={`This password reset link for ${resetToRevoke?.user.username ?? ''} will no longer work.`}
+        confirmLabel="Revoke"
+        loading={revokeReset.isPending}
+        onConfirm={handleRevokeReset}
+        onCancel={() => setResetToRevoke(null)}
       />
     </Box>
   );

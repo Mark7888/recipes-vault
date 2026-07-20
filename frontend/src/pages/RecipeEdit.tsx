@@ -10,20 +10,25 @@ import {
 import {
   SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates
 } from '@dnd-kit/sortable';
-import { useRecipe, useUpdateRecipe, useDeleteRecipe, useRecipeImages } from '../hooks/useRecipes';
-import { recipesApi } from '../api/recipes.api';
+import { useRecipe, useUpdateRecipe, useDeleteRecipe, useRecipeImages, useSetRecipeTags } from '../hooks/useRecipes';
 import { useAuthStore } from '../store/authStore';
 import { TagInput } from '../components/recipe/TagInput';
 import { ImagePicker } from '../components/recipe/ImagePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SortableStepItem } from '../components/recipe/SortableStepItem';
+import { SortableIngredientItem } from '../components/recipe/SortableIngredientItem';
+import { getErrorMessage } from '../utils/errors';
 import type { Ingredient, Instruction } from '../types';
+
+interface EditableIngredient extends Ingredient {
+  id: string;
+}
 
 interface EditableInstruction extends Instruction {
   id: string;
 }
 
-const makeInstructionId = () => crypto.randomUUID();
+const newId = () => crypto.randomUUID();
 
 // Matches a leading number (including fractions/decimals) and an optional fused unit suffix, e.g. "80g" → ["80","g"], "2" → ["2",""]
 const NUMERIC_PREFIX = /^([\d.,/¼½¾⅓⅔⅛⅜⅝⅞]+)(.*)/;
@@ -47,22 +52,23 @@ export default function RecipeEdit() {
   const { data: recipe, isLoading } = useRecipe(id!);
   const { data: images } = useRecipeImages(id!, { pollUntilLoaded: true });
   const updateRecipe = useUpdateRecipe();
+  const setRecipeTags = useSetRecipeTags();
   const deleteRecipe = useDeleteRecipe();
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const [title, setTitle] = useState('');
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingredients, setIngredients] = useState<EditableIngredient[]>([]);
   const [instructions, setInstructions] = useState<EditableInstruction[]>([]);
   const [prepTime, setPrepTime] = useState('');
   const [cookTime, setCookTime] = useState('');
   const [servings, setServings] = useState('');
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const instructionSensors = useSensors(
+  const [dirty, setDirty] = useState(false);
+  const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
@@ -70,22 +76,40 @@ export default function RecipeEdit() {
   // Populate the form only on first load of each recipe: image uploads invalidate
   // the recipe query, and the refetch must not overwrite unsaved edits.
   const initializedRecipeId = useRef<string | null>(null);
+  const justLoadedRef = useRef(false);
   useEffect(() => {
     if (recipe && initializedRecipeId.current !== recipe.id) {
       initializedRecipeId.current = recipe.id;
+      justLoadedRef.current = true;
       setTitle(recipe.title);
-      setIngredients(recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }]);
+      const initialIngredients = recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }];
+      setIngredients(initialIngredients.map((ing) => ({ ...ing, id: newId() })));
       const initialInstructions = recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }];
-      setInstructions(initialInstructions.map((inst) => ({ ...inst, id: makeInstructionId() })));
+      setInstructions(initialInstructions.map((inst) => ({ ...inst, id: newId() })));
       setPrepTime(recipe.prepTime?.toString() || '');
       setCookTime(recipe.cookTime?.toString() || '');
       setServings(recipe.servings?.toString() || '');
       setNotes(recipe.notes || '');
       setTags(recipe.tags.map((t) => t.name));
+      setDirty(false);
     }
   }, [recipe]);
 
-  const addIngredient = () => setIngredients([...ingredients, { amount: '', unit: '', name: '' }]);
+  // Skip the render right after population above — those setState calls land in
+  // the same batch, so this only actually flips `dirty` on real user edits.
+  useEffect(() => {
+    if (justLoadedRef.current) { justLoadedRef.current = false; return; }
+    setDirty(true);
+  }, [title, ingredients, instructions, prepTime, cookTime, servings, notes, tags]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  const addIngredient = () => setIngredients([...ingredients, { amount: '', unit: '', name: '', id: newId() }]);
   const removeIngredient = (i: number) => setIngredients(ingredients.filter((_, idx) => idx !== i));
   const updateIngredient = (i: number, field: keyof Ingredient, value: string) => {
     const updated = [...ingredients];
@@ -95,12 +119,20 @@ export default function RecipeEdit() {
   const splitIngredient = (i: number) => {
     setIngredients(prev => {
       const updated = [...prev];
-      updated[i] = splitIngredientString(updated[i]?.name ?? '');
+      updated[i] = { ...splitIngredientString(updated[i]?.name ?? ''), id: updated[i].id };
       return updated;
     });
   };
   const splitAllIngredients = () => {
-    setIngredients(prev => prev.map(ing => ing.amount === '' ? splitIngredientString(ing.name ?? '') : ing));
+    setIngredients(prev => prev.map(ing => ing.amount === '' ? { ...splitIngredientString(ing.name ?? ''), id: ing.id } : ing));
+  };
+  const handleIngredientDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    setIngredients((prev) => {
+      const oldIndex = prev.findIndex((ing) => ing.id === active.id);
+      const newIndex = prev.findIndex((ing) => ing.id === over.id);
+      return arrayMove(prev, oldIndex, newIndex);
+    });
   };
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
@@ -119,7 +151,7 @@ export default function RecipeEdit() {
     );
   }
 
-  const addInstruction = () => setInstructions([...instructions, { step: instructions.length + 1, text: '', id: makeInstructionId() }]);
+  const addInstruction = () => setInstructions([...instructions, { step: instructions.length + 1, text: '', id: newId() }]);
   const removeInstruction = (i: number) => {
     const filtered = instructions.filter((_, idx) => idx !== i).map((inst, idx) => ({ ...inst, step: idx + 1 }));
     setInstructions(filtered);
@@ -144,15 +176,18 @@ export default function RecipeEdit() {
     navigate('/recipes');
   };
 
+  const handleCancelClick = () => {
+    if (dirty) setConfirmCancel(true);
+    else navigate(`/recipes/${recipe.id}`);
+  };
+
   const handleSave = async () => {
-    setSaving(true);
-    setSaveError('');
     try {
       await updateRecipe.mutateAsync({
         id: recipe.id,
         data: {
           title,
-          ingredients: ingredients.filter((i) => i.name.trim()),
+          ingredients: ingredients.filter((i) => i.name.trim()).map(({ amount, unit, name }) => ({ amount, unit, name })),
           instructions: instructions.filter((i) => i.text.trim()).map(({ step, text }) => ({ step, text })),
           prepTime: prepTime ? parseInt(prepTime) : undefined,
           cookTime: cookTime ? parseInt(cookTime) : undefined,
@@ -160,14 +195,17 @@ export default function RecipeEdit() {
           notes: notes || undefined,
         },
       });
-      await recipesApi.setTags(recipe.id, tags);
+      await setRecipeTags.mutateAsync({ id: recipe.id, tags });
       navigate(`/recipes/${recipe.id}`);
     } catch {
-      setSaveError('Failed to save recipe. Please try again.');
-    } finally {
-      setSaving(false);
+      // surfaced below via updateRecipe.isError / setRecipeTags.isError
     }
   };
+
+  const saving = updateRecipe.isPending || setRecipeTags.isPending;
+  const saveErrorMessage = updateRecipe.isError || setRecipeTags.isError
+    ? getErrorMessage(updateRecipe.error ?? setRecipeTags.error, 'Failed to save recipe. Please try again.')
+    : null;
 
   return (
     <Box maxW="800px" mx="auto" py={6}>
@@ -176,7 +214,7 @@ export default function RecipeEdit() {
           <Heading size="lg">Edit Recipe</Heading>
           <HStack gap={2}>
             <Button variant="ghost" colorPalette="red" onClick={() => setConfirmDelete(true)}>Delete</Button>
-            <Button variant="ghost" onClick={() => navigate(`/recipes/${recipe.id}`)}>Cancel</Button>
+            <Button variant="ghost" onClick={handleCancelClick}>Cancel</Button>
             <Button colorPalette="green" onClick={handleSave} loading={saving}>Save</Button>
           </HStack>
         </HStack>
@@ -190,9 +228,18 @@ export default function RecipeEdit() {
           onCancel={() => setConfirmDelete(false)}
         />
 
-        {saveError && (
+        <ConfirmDialog
+          open={confirmCancel}
+          title="Discard changes?"
+          message="You have unsaved changes. If you leave now, they will be lost."
+          confirmLabel="Discard"
+          onConfirm={() => navigate(`/recipes/${recipe.id}`)}
+          onCancel={() => setConfirmCancel(false)}
+        />
+
+        {saveErrorMessage && (
           <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-            <Text color="red.600" fontSize="sm">{saveError}</Text>
+            <Text color="red.600" fontSize="sm">{saveErrorMessage}</Text>
           </Box>
         )}
 
@@ -218,39 +265,26 @@ export default function RecipeEdit() {
               <Button size="xs" onClick={addIngredient} colorPalette="green" variant="outline">+ Add</Button>
             </HStack>
           </HStack>
-          <VStack gap={2}>
-            {ingredients.map((ing, i) => (
-              <HStack key={i} gap={{ base: 1, sm: 2 }} w="full">
-                <Input
-                  placeholder="Amount"
-                  value={ing.amount}
-                  onChange={(e) => updateIngredient(i, 'amount', e.target.value)}
-                  w={{ base: '56px', sm: '80px' }}
-                  size="sm"
-                />
-                <Input
-                  placeholder="Unit"
-                  value={ing.unit}
-                  onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                  w={{ base: '56px', sm: '80px' }}
-                  size="sm"
-                />
-                <Input
-                  placeholder="Ingredient name"
-                  value={ing.name}
-                  onChange={(e) => updateIngredient(i, 'name', e.target.value)}
-                  flex="1"
-                  size="sm"
-                />
-                {ing.amount === '' && ing.name?.includes(' ') && (
-                  <Button size="xs" variant="ghost" colorPalette="blue" onClick={() => splitIngredient(i)} title="Auto-split into amount / unit / name">
-                    ↤
-                  </Button>
-                )}
-                <Button size="xs" variant="ghost" colorPalette="red" onClick={() => removeIngredient(i)}>x</Button>
-              </HStack>
-            ))}
-          </VStack>
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleIngredientDragEnd}
+          >
+            <SortableContext items={ingredients.map((ing) => ing.id)} strategy={verticalListSortingStrategy}>
+              <VStack gap={2}>
+                {ingredients.map((ing, i) => (
+                  <SortableIngredientItem
+                    key={ing.id}
+                    id={ing.id}
+                    ingredient={ing}
+                    onChange={(field, value) => updateIngredient(i, field, value)}
+                    onSplit={() => splitIngredient(i)}
+                    onRemove={() => removeIngredient(i)}
+                  />
+                ))}
+              </VStack>
+            </SortableContext>
+          </DndContext>
         </Box>
 
         <Box w="full" borderTopWidth="1px" pt={4}>
@@ -259,7 +293,7 @@ export default function RecipeEdit() {
             <Button size="xs" onClick={addInstruction} colorPalette="green" variant="outline">+ Add Step</Button>
           </HStack>
           <DndContext
-            sensors={instructionSensors}
+            sensors={dndSensors}
             collisionDetection={closestCenter}
             onDragEnd={handleInstructionDragEnd}
           >

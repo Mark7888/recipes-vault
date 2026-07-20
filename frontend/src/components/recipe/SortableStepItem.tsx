@@ -2,6 +2,7 @@ import { Box, Button, HStack, Textarea } from '@chakra-ui/react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Instruction } from '../../types';
+import { CloseIcon, DragHandleIcon } from '../ui/icons';
 
 interface Props {
   id: string;
@@ -33,13 +34,12 @@ export function SortableStepItem({ id, instruction, onChange, onRemove }: Props)
         cursor="grab"
         _active={{ cursor: 'grabbing' }}
         color="gray.400"
-        fontSize="md"
+        display="flex"
         mt={1}
         px={1}
-        userSelect="none"
         flexShrink={0}
       >
-        ⠿
+        <DragHandleIcon size={18} />
       </Box>
       <Box
         minW="28px"
@@ -65,7 +65,9 @@ export function SortableStepItem({ id, instruction, onChange, onRemove }: Props)
         size="sm"
         rows={2}
       />
-      <Button size="xs" variant="ghost" colorPalette="red" onClick={onRemove} mt={1}>x</Button>
+      <Button size="xs" variant="ghost" colorPalette="red" onClick={onRemove} mt={1}>
+        <CloseIcon size={14} />
+      </Button>
     </HStack>
   );
 }

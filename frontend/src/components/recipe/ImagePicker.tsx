@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   Box, Button, Grid, GridItem, Image, Text, VStack, HStack, Badge
 } from '@chakra-ui/react';
 import type { Image as RecipeImage } from '../../types';
 import { useUploadRecipeImage, useDeleteRecipeImage, useSetCoverImage } from '../../hooks/useRecipes';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface Props {
   recipeId: string;
@@ -16,6 +17,13 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
   const uploadMutation = useUploadRecipeImage();
   const deleteMutation = useDeleteRecipeImage();
   const setCoverMutation = useSetCoverImage();
+  const [imageToDelete, setImageToDelete] = useState<RecipeImage | null>(null);
+
+  const handleDelete = async () => {
+    if (!imageToDelete) return;
+    await deleteMutation.mutateAsync({ id: recipeId, imageId: imageToDelete.id });
+    setImageToDelete(null);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,8 +80,7 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
                     size="xs"
                     variant="ghost"
                     colorPalette="red"
-                    onClick={() => deleteMutation.mutate({ id: recipeId, imageId: img.id })}
-                    loading={deleteMutation.isPending}
+                    onClick={() => setImageToDelete(img)}
                   >
                     Remove
                   </Button>
@@ -85,6 +92,16 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
       ) : (
         <Text color="gray.500" fontSize="sm">No images yet. Upload one above.</Text>
       )}
+
+      <ConfirmDialog
+        open={imageToDelete !== null}
+        title="Remove image?"
+        message="This image will be permanently removed from the recipe."
+        confirmLabel="Remove"
+        loading={deleteMutation.isPending}
+        onConfirm={handleDelete}
+        onCancel={() => setImageToDelete(null)}
+      />
     </VStack>
   );
 }

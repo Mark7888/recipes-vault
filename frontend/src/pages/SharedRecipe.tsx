@@ -2,19 +2,14 @@ import {
   Box, Heading, HStack, Text, VStack, Badge, Spinner, Image
 } from '@chakra-ui/react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { recipesApi } from '../api/recipes.api';
+import { useSharedRecipe } from '../hooks/useRecipes';
 import { IngredientList } from '../components/recipe/IngredientList';
 import { StepList } from '../components/recipe/StepList';
+import { ExternalLinkIcon } from '../components/ui/icons';
 
 export default function SharedRecipe() {
   const { token } = useParams<{ token: string }>();
-  const { data: recipe, isLoading, isError } = useQuery({
-    queryKey: ['shared-recipe', token],
-    queryFn: () => recipesApi.getShared(token!),
-    enabled: !!token,
-    retry: false,
-  });
+  const { data: recipe, isLoading, isError } = useSharedRecipe(token!);
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (isError || !recipe) {
@@ -42,7 +37,10 @@ export default function SharedRecipe() {
           )}
           {recipe.sourceUrl && (
             <Text fontSize="sm" color="blue.500">
-              <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer">Original recipe ↗</a>
+              <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span>Original recipe</span>
+                <ExternalLinkIcon size={12} />
+              </a>
             </Text>
           )}
         </VStack>

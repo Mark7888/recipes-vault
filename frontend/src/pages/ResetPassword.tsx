@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Heading, Input, VStack, Text, Container } from '@chakra-ui/react';
+import { Box, Button, Heading, VStack, Text, Container } from '@chakra-ui/react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
-
-function validatePassword(password: string): string | null {
-  if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
-  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
-  return null;
-}
+import { PasswordInput } from '../components/ui/PasswordInput';
+import { PasswordRequirements } from '../components/ui/PasswordRequirements';
+import { validatePassword } from '../utils/password';
+import { getErrorMessage } from '../utils/errors';
 
 function StatusBox({ message, variant }: { message: string; variant: 'error' | 'success' }) {
   const isError = variant === 'error';
@@ -52,8 +49,7 @@ export default function ResetPassword() {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Failed to reset password. The link may have expired.');
+      setError(getErrorMessage(err, 'Failed to reset password. The link may have expired.'));
     } finally {
       setLoading(false);
     }
@@ -74,18 +70,17 @@ export default function ResetPassword() {
                 <VStack gap={4}>
                   <Box w="full">
                     <Text mb={1} fontWeight="medium" fontSize="sm">New Password</Text>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Min 8 chars, 1 uppercase, 1 number"
                       required
                     />
+                    {password.length > 0 && <Box mt={2}><PasswordRequirements password={password} /></Box>}
                   </Box>
                   <Box w="full">
                     <Text mb={1} fontWeight="medium" fontSize="sm">Confirm New Password</Text>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
                       required

@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { usersApi } from '../../api/users.api';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/authStore';
+import { PasswordInput } from '../ui/PasswordInput';
+import { PasswordRequirements } from '../ui/PasswordRequirements';
+import { getErrorMessage } from '../../utils/errors';
 
 export function SettingsPanel() {
   const { user, setAuth, accessToken, logout } = useAuthStore();
@@ -48,8 +51,7 @@ export function SettingsPanel() {
       setConfirmPassword('');
       setUsername('');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Failed to update settings');
+      setError(getErrorMessage(err, 'Failed to update settings'));
     } finally {
       setLoading(false);
     }
@@ -76,8 +78,7 @@ export function SettingsPanel() {
           </Box>
           <Box w="full">
             <Text mb={1} fontWeight="medium" fontSize="sm">Current Password <Text as="span" color="red.500">*</Text></Text>
-            <Input
-              type="password"
+            <PasswordInput
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
@@ -85,18 +86,17 @@ export function SettingsPanel() {
           </Box>
           <Box w="full">
             <Text mb={1} fontWeight="medium" fontSize="sm">New Password (optional)</Text>
-            <Input
-              type="password"
+            <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Min 8 chars, 1 uppercase, 1 number"
             />
+            {newPassword.length > 0 && <Box mt={2}><PasswordRequirements password={newPassword} /></Box>}
           </Box>
           {newPassword && (
             <Box w="full">
               <Text mb={1} fontWeight="medium" fontSize="sm">Confirm New Password</Text>
-              <Input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />

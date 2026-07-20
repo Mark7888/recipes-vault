@@ -3,7 +3,7 @@ import {
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useRecipe, useDeleteRecipe } from '../hooks/useRecipes';
+import { useRecipe, useDeleteRecipe, useDuplicateRecipe } from '../hooks/useRecipes';
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { IngredientList } from '../components/recipe/IngredientList';
@@ -11,11 +11,13 @@ import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
 import { AddToCollectionPanel } from '../components/recipe/AddToCollectionPanel';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { CartIcon, CheckIcon, CopyIcon, EditIcon, ExternalLinkIcon, ShareIcon } from '../components/ui/icons';
 
 export default function RecipeView() {
   const { id } = useParams<{ id: string }>();
   const { data: recipe, isLoading, isError } = useRecipe(id!);
   const deleteRecipe = useDeleteRecipe();
+  const duplicateRecipe = useDuplicateRecipe();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -73,6 +75,11 @@ export default function RecipeView() {
     navigate('/recipes');
   };
 
+  const handleDuplicate = async () => {
+    const copy = await duplicateRecipe.mutateAsync(recipe);
+    navigate(`/recipes/${copy.id}/edit`);
+  };
+
   return (
     <Box maxW="800px" mx="auto" py={6}>
       <VStack align="start" gap={6}>
@@ -90,7 +97,10 @@ export default function RecipeView() {
             <Heading size="xl">{recipe.title}</Heading>
             {recipe.sourceUrl && (
               <Text fontSize="sm" color="blue.500">
-                <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer">Original recipe ↗</a>
+                <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span>Original recipe</span>
+                  <ExternalLinkIcon size={12} />
+                </a>
               </Text>
             )}
             {recipe.isFallback && (
@@ -100,10 +110,13 @@ export default function RecipeView() {
           {isOwner && (
             <HStack gap={2}>
               <Button size="sm" colorPalette="blue" variant="outline" onClick={handleShare}>
-                🔗 Share
+                <ShareIcon size={14} /> Share
+              </Button>
+              <Button size="sm" colorPalette="blue" variant="outline" loading={duplicateRecipe.isPending} onClick={handleDuplicate}>
+                <CopyIcon size={14} /> Duplicate
               </Button>
               <Link to={`/recipes/${recipe.id}/edit`}>
-                <Button size="sm" colorPalette="green" variant="outline">✏️ Edit</Button>
+                <Button size="sm" colorPalette="green" variant="outline"><EditIcon size={14} /> Edit</Button>
               </Link>
               <Button size="sm" colorPalette="red" variant="ghost" onClick={() => setConfirmDelete(true)}>
                 Delete
@@ -187,7 +200,7 @@ export default function RecipeView() {
                   loading={addShoppingItems.isPending}
                   onClick={handleAddToShoppingList}
                 >
-                  {addedToList ? '✓ Added to shopping list' : `🛒 Add ${missing.length} missing to shopping list`}
+                  {addedToList ? <><CheckIcon size={14} /> Added to shopping list</> : <><CartIcon size={14} /> Add {missing.length} missing to shopping list</>}
                 </Button>
               </VStack>
             );
