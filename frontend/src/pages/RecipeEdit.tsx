@@ -3,13 +3,27 @@ import {
   Box, Button, Heading, HStack, Input, VStack, Text, Textarea, Spinner
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
+  SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates
+} from '@dnd-kit/sortable';
 import { useRecipe, useUpdateRecipe, useDeleteRecipe, useRecipeImages } from '../hooks/useRecipes';
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { TagInput } from '../components/recipe/TagInput';
 import { ImagePicker } from '../components/recipe/ImagePicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { SortableStepItem } from '../components/recipe/SortableStepItem';
 import type { Ingredient, Instruction } from '../types';
+
+interface EditableInstruction extends Instruction {
+  id: string;
+}
+
+const makeInstructionId = () => crypto.randomUUID();
 
 // Matches a leading number (including fractions/decimals) and an optional fused unit suffix, e.g. "80g" → ["80","g"], "2" → ["2",""]
 const NUMERIC_PREFIX = /^([\d.,/¼½¾⅓⅔⅛⅜⅝⅞]+)(.*)/;
@@ -40,7 +54,7 @@ export default function RecipeEdit() {
 
   const [title, setTitle] = useState('');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const [instructions, setInstructions] = useState<EditableInstruction[]>([]);
   const [prepTime, setPrepTime] = useState('');
   const [cookTime, setCookTime] = useState('');
   const [servings, setServings] = useState('');
@@ -48,6 +62,10 @@ export default function RecipeEdit() {
   const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const instructionSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   // Populate the form only on first load of each recipe: image uploads invalidate
   // the recipe query, and the refetch must not overwrite unsaved edits.
@@ -57,7 +75,8 @@ export default function RecipeEdit() {
       initializedRecipeId.current = recipe.id;
       setTitle(recipe.title);
       setIngredients(recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }]);
-      setInstructions(recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }]);
+      const initialInstructions = recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }];
+      setInstructions(initialInstructions.map((inst) => ({ ...inst, id: makeInstructionId() })));
       setPrepTime(recipe.prepTime?.toString() || '');
       setCookTime(recipe.cookTime?.toString() || '');
       setServings(recipe.servings?.toString() || '');
@@ -100,7 +119,7 @@ export default function RecipeEdit() {
     );
   }
 
-  const addInstruction = () => setInstructions([...instructions, { step: instructions.length + 1, text: '' }]);
+  const addInstruction = () => setInstructions([...instructions, { step: instructions.length + 1, text: '', id: makeInstructionId() }]);
   const removeInstruction = (i: number) => {
     const filtered = instructions.filter((_, idx) => idx !== i).map((inst, idx) => ({ ...inst, step: idx + 1 }));
     setInstructions(filtered);
@@ -109,6 +128,14 @@ export default function RecipeEdit() {
     const updated = [...instructions];
     updated[i] = { ...updated[i], text };
     setInstructions(updated);
+  };
+  const handleInstructionDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    setInstructions((prev) => {
+      const oldIndex = prev.findIndex((inst) => inst.id === active.id);
+      const newIndex = prev.findIndex((inst) => inst.id === over.id);
+      return arrayMove(prev, oldIndex, newIndex).map((inst, idx) => ({ ...inst, step: idx + 1 }));
+    });
   };
 
   const handleDelete = async () => {
@@ -126,7 +153,7 @@ export default function RecipeEdit() {
         data: {
           title,
           ingredients: ingredients.filter((i) => i.name.trim()),
-          instructions: instructions.filter((i) => i.text.trim()),
+          instructions: instructions.filter((i) => i.text.trim()).map(({ step, text }) => ({ step, text })),
           prepTime: prepTime ? parseInt(prepTime) : undefined,
           cookTime: cookTime ? parseInt(cookTime) : undefined,
           servings: servings ? parseInt(servings) : undefined,
@@ -231,37 +258,25 @@ export default function RecipeEdit() {
             <Heading size="sm">Instructions</Heading>
             <Button size="xs" onClick={addInstruction} colorPalette="green" variant="outline">+ Add Step</Button>
           </HStack>
-          <VStack gap={3}>
-            {instructions.map((inst, i) => (
-              <HStack key={i} align="start" gap={2} w="full">
-                <Box
-                  minW="28px"
-                  h="28px"
-                  borderRadius="full"
-                  bg="green.500"
-                  color="white"
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  fontSize="xs"
-                  fontWeight="bold"
-                  mt={1}
-                  flexShrink={0}
-                >
-                  {inst.step}
-                </Box>
-                <Textarea
-                  value={inst.text}
-                  onChange={(e) => updateInstruction(i, e.target.value)}
-                  placeholder={`Step ${inst.step}...`}
-                  flex="1"
-                  size="sm"
-                  rows={2}
-                />
-                <Button size="xs" variant="ghost" colorPalette="red" onClick={() => removeInstruction(i)} mt={1}>x</Button>
-              </HStack>
-            ))}
-          </VStack>
+          <DndContext
+            sensors={instructionSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleInstructionDragEnd}
+          >
+            <SortableContext items={instructions.map((inst) => inst.id)} strategy={verticalListSortingStrategy}>
+              <VStack gap={3}>
+                {instructions.map((inst, i) => (
+                  <SortableStepItem
+                    key={inst.id}
+                    id={inst.id}
+                    instruction={inst}
+                    onChange={(text) => updateInstruction(i, text)}
+                    onRemove={() => removeInstruction(i)}
+                  />
+                ))}
+              </VStack>
+            </SortableContext>
+          </DndContext>
         </Box>
 
         <Box w="full" borderTopWidth="1px" pt={4}>
