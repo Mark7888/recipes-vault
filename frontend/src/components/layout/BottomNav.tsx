@@ -22,9 +22,9 @@ export function BottomNav() {
       left={0}
       right={0}
       zIndex={20}
-      bg="white"
+      bg="bg.panel"
       borderTopWidth="1px"
-      borderColor="gray.200"
+      borderColor="border"
       pb="env(safe-area-inset-bottom)"
       shadow="0 -1px 4px rgba(0,0,0,0.06)"
     >
@@ -38,8 +38,8 @@ export function BottomNav() {
                 align="center"
                 gap={0.5}
                 py={2}
-                color={active ? 'green.600' : 'gray.500'}
-                _active={{ bg: 'gray.50' }}
+                color={active ? 'green.600' : 'fg.muted'}
+                _active={{ bg: 'bg.subtle' }}
               >
                 {item.icon}
                 <Text fontSize="xs" fontWeight={active ? 'semibold' : 'normal'}>

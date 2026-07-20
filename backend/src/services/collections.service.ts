@@ -11,12 +11,18 @@ export async function createCollection(name: string, ownerId: string) {
   });
 }
 
+const TRANSFER_INCLUDE = {
+  fromUser: { select: { id: true, username: true } },
+  toUser: { select: { id: true, username: true } },
+} as const;
+
 export async function getCollectionsForUser(userId: string) {
   return prisma.collection.findMany({
     where: { members: { some: { userId } } },
     include: {
       members: { include: { user: { select: { id: true, username: true } } } },
       _count: { select: { recipes: true } },
+      pendingTransfer: { include: TRANSFER_INCLUDE },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -33,6 +39,7 @@ export async function getCollectionById(id: string) {
           addedBy: { select: { id: true, username: true } },
         },
       },
+      pendingTransfer: { include: TRANSFER_INCLUDE },
     },
   });
 }
@@ -68,18 +75,9 @@ export async function addMember(collectionId: string, userId: string, role: Role
 
 export async function updateMemberRole(collectionId: string, userId: string, newRole: Role) {
   if (newRole === Role.OWNER) {
-    return prisma.$transaction(async (tx) => {
-      // Demote current owner to Editor
-      await tx.collectionMembership.updateMany({
-        where: { collectionId, role: Role.OWNER },
-        data: { role: Role.EDITOR },
-      });
-      // Promote new owner
-      return tx.collectionMembership.update({
-        where: { collectionId_userId: { collectionId, userId } },
-        data: { role: Role.OWNER },
-      });
-    });
+    // Ownership changes hands only through the transfer accept/reject flow,
+    // never as a direct role assignment.
+    throw new Error('Use the ownership transfer flow to grant OWNER');
   }
   return prisma.collectionMembership.update({
     where: { collectionId_userId: { collectionId, userId } },
@@ -90,6 +88,66 @@ export async function updateMemberRole(collectionId: string, userId: string, new
 export async function removeMember(collectionId: string, userId: string) {
   return prisma.collectionMembership.delete({
     where: { collectionId_userId: { collectionId, userId } },
+  });
+}
+
+export async function initiateOwnershipTransfer(collectionId: string, fromUserId: string, toUserId: string) {
+  if (fromUserId === toUserId) throw new Error('Cannot transfer ownership to yourself');
+  const toMembership = await prisma.collectionMembership.findUnique({
+    where: { collectionId_userId: { collectionId, userId: toUserId } },
+  });
+  if (!toMembership) throw new Error('Target user is not a member of this collection');
+  const existing = await prisma.ownershipTransfer.findUnique({ where: { collectionId } });
+  if (existing) throw new Error('A transfer is already pending for this collection');
+  return prisma.ownershipTransfer.create({
+    data: { collectionId, fromUserId, toUserId },
+    include: TRANSFER_INCLUDE,
+  });
+}
+
+// The other party (or the same party from another tab) may already have
+// resolved the transfer by the time this fires — since the desired end
+// state ("no pending transfer") already holds, treat that as success
+// rather than an error.
+export async function cancelOwnershipTransfer(collectionId: string, requesterId: string) {
+  const transfer = await prisma.ownershipTransfer.findUnique({ where: { collectionId } });
+  if (!transfer) return;
+  if (transfer.fromUserId !== requesterId) throw new Error('Only the sender can cancel this transfer');
+  await prisma.ownershipTransfer.delete({ where: { collectionId } });
+}
+
+export async function rejectOwnershipTransfer(collectionId: string, requesterId: string) {
+  const transfer = await prisma.ownershipTransfer.findUnique({ where: { collectionId } });
+  if (!transfer) return;
+  if (transfer.toUserId !== requesterId) throw new Error('Only the recipient can reject this transfer');
+  await prisma.ownershipTransfer.delete({ where: { collectionId } });
+}
+
+export async function acceptOwnershipTransfer(collectionId: string, requesterId: string) {
+  const transfer = await prisma.ownershipTransfer.findUnique({ where: { collectionId } });
+  if (!transfer) return;
+  if (transfer.toUserId !== requesterId) throw new Error('Only the recipient can accept this transfer');
+  return prisma.$transaction(async (tx) => {
+    await tx.collectionMembership.update({
+      where: { collectionId_userId: { collectionId, userId: transfer.fromUserId } },
+      data: { role: Role.EDITOR },
+    });
+    await tx.collectionMembership.update({
+      where: { collectionId_userId: { collectionId, userId: transfer.toUserId } },
+      data: { role: Role.OWNER },
+    });
+    await tx.ownershipTransfer.delete({ where: { collectionId } });
+  });
+}
+
+export async function getIncomingTransfersForUser(userId: string) {
+  return prisma.ownershipTransfer.findMany({
+    where: { toUserId: userId },
+    include: {
+      ...TRANSFER_INCLUDE,
+      collection: { include: { _count: { select: { recipes: true } } } },
+    },
+    orderBy: { createdAt: 'desc' },
   });
 }
 

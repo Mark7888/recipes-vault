@@ -21,7 +21,7 @@ export function SortableStepItem({ id, instruction, onChange, onRemove }: Props)
       align="start"
       gap={2}
       w="full"
-      bg={isDragging ? 'gray.50' : undefined}
+      bg={isDragging ? 'bg.subtle' : undefined}
       opacity={isDragging ? 0.5 : 1}
       zIndex={isDragging ? 1 : undefined}
       position="relative"
@@ -33,7 +33,7 @@ export function SortableStepItem({ id, instruction, onChange, onRemove }: Props)
         aria-label="Drag to reorder step"
         cursor="grab"
         _active={{ cursor: 'grabbing' }}
-        color="gray.400"
+        color="fg.subtle"
         display="flex"
         mt={1}
         px={1}

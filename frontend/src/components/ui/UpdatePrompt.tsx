@@ -36,9 +36,9 @@ export function UpdatePrompt() {
       zIndex={1400}
       maxW="360px"
       mx="auto"
-      bg="white"
+      bg="bg.panel"
       borderWidth="1px"
-      borderColor="gray.200"
+      borderColor="border"
       borderRadius="lg"
       shadow="lg"
       px={4}
@@ -46,7 +46,7 @@ export function UpdatePrompt() {
       role="status"
     >
       <HStack justify="space-between" gap={3}>
-        <Text fontSize="sm" color="gray.700">
+        <Text fontSize="sm" color="fg">
           New version available
         </Text>
         <Button size="sm" colorPalette="green" onClick={() => void updateServiceWorker()}>

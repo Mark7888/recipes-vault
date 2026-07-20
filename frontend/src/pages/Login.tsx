@@ -39,11 +39,11 @@ export default function Login() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50" display="flex" alignItems="center" justifyContent="center">
+    <Box minH="100vh" bg="bg.subtle" display="flex" alignItems="center" justifyContent="center">
       <Container maxW="sm">
-        <Box bg="white" p={8} borderRadius="xl" shadow="md">
+        <Box bg="bg.panel" p={8} borderRadius="xl" shadow="md">
           <VStack gap={6}>
-            <Heading size="lg" color="green.700">RecipeVault</Heading>
+            <Heading size="lg" color="green.fg">RecipeVault</Heading>
             <form onSubmit={handleSubmit} style={{ width: '100%' }}>
               <VStack gap={4}>
                 <Box w="full">
@@ -65,8 +65,8 @@ export default function Login() {
                   />
                 </Box>
                 {error && (
-                  <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-                    <Text color="red.600" fontSize="sm">{error}</Text>
+                  <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+                    <Text color="fg.error" fontSize="sm">{error}</Text>
                   </Box>
                 )}
                 <Button type="submit" colorPalette="green" w="full" loading={loading}>
@@ -76,7 +76,7 @@ export default function Login() {
             </form>
           </VStack>
         </Box>
-        <Text fontSize="sm" color="gray.500" textAlign="center">
+        <Text fontSize="sm" color="fg.muted" textAlign="center">
           Forgot your password? Ask the admin to generate a reset link.
         </Text>
       </Container>

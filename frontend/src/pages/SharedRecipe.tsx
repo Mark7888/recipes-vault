@@ -1,10 +1,11 @@
 import {
-  Box, Heading, HStack, Text, VStack, Badge, Spinner, Image
+  Box, Heading, HStack, Text, VStack, Badge, Spinner
 } from '@chakra-ui/react';
 import { useParams } from 'react-router-dom';
 import { useSharedRecipe } from '../hooks/useRecipes';
 import { IngredientList } from '../components/recipe/IngredientList';
 import { StepList } from '../components/recipe/StepList';
+import { ImageGallery } from '../components/recipe/ImageGallery';
 import { ExternalLinkIcon } from '../components/ui/icons';
 
 export default function SharedRecipe() {
@@ -15,25 +16,21 @@ export default function SharedRecipe() {
   if (isError || !recipe) {
     return (
       <Box maxW="800px" mx="auto" p={8}>
-        <Box p={4} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-          <Text color="red.600">This shared recipe link is invalid.</Text>
+        <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+          <Text color="fg.error">This shared recipe link is invalid.</Text>
         </Box>
       </Box>
     );
   }
 
-  const coverUrl = recipe.coverImage ? `/images/${recipe.coverImage.filePath}` : null;
-
   return (
     <Box maxW="800px" mx="auto" py={6} px={4}>
       <VStack align="start" gap={6}>
-        {coverUrl && (
-          <Image src={coverUrl} alt={recipe.title} w="full" maxH={{ base: '240px', md: '400px' }} objectFit="cover" borderRadius="xl" />
-        )}
+        <ImageGallery images={recipe.images ?? []} coverImageId={recipe.coverImageId} title={recipe.title} />
         <VStack align="start" gap={1}>
           <Heading size="xl">{recipe.title}</Heading>
           {recipe.owner && (
-            <Text fontSize="sm" color="gray.500">Shared by {recipe.owner.username}</Text>
+            <Text fontSize="sm" color="fg.muted">Shared by {recipe.owner.username}</Text>
           )}
           {recipe.sourceUrl && (
             <Text fontSize="sm" color="blue.500">
@@ -45,7 +42,7 @@ export default function SharedRecipe() {
           )}
         </VStack>
 
-        <HStack gap={4} color="gray.600" fontSize="sm" flexWrap="wrap">
+        <HStack gap={4} color="fg.muted" fontSize="sm" flexWrap="wrap">
           {recipe.prepTime && <Text>{recipe.prepTime} min prep</Text>}
           {recipe.cookTime && <Text>{recipe.cookTime} min cook</Text>}
           {recipe.servings && <Text>{recipe.servings} servings</Text>}
@@ -58,8 +55,8 @@ export default function SharedRecipe() {
         </HStack>
 
         {recipe.notes && (
-          <Box bg="yellow.50" p={4} borderRadius="md" borderLeftWidth="4px" borderLeftColor="yellow.400">
-            <Text>{recipe.notes}</Text>
+          <Box bg="yellow.subtle" p={4} borderRadius="md" borderLeftWidth="4px" borderLeftColor="yellow.border">
+            <Text color="yellow.fg">{recipe.notes}</Text>
           </Box>
         )}
 

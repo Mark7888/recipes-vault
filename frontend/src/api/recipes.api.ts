@@ -1,9 +1,35 @@
 import { apiClient } from './client';
 import type { Recipe } from '../types';
 
+export type RecipeSort = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'prep-time';
+
+export interface RecipeListParams {
+  search?: string;
+  tags?: string[];
+  site?: string;
+  sort?: RecipeSort;
+  limit?: number;
+  offset?: number;
+}
+
+export interface RecipeListResult {
+  items: Recipe[];
+  total: number;
+  hasMore: boolean;
+}
+
 export const recipesApi = {
-  list: (params?: { search?: string; tags?: string[]; site?: string }) =>
-    apiClient.get<Recipe[]>('/recipes', { params: { search: params?.search, 'tags[]': params?.tags, site: params?.site } }).then(r => r.data),
+  list: (params?: RecipeListParams) =>
+    apiClient.get<RecipeListResult>('/recipes', {
+      params: {
+        search: params?.search,
+        'tags[]': params?.tags,
+        site: params?.site,
+        sort: params?.sort,
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+    }).then(r => r.data),
 
   listSites: () =>
     apiClient.get<string[]>('/recipes/sites').then(r => r.data),
@@ -20,6 +46,9 @@ export const recipesApi = {
   delete: (id: string) =>
     apiClient.delete(`/recipes/${id}`),
 
+  duplicate: (id: string) =>
+    apiClient.post<Recipe>(`/recipes/${id}/duplicate`).then(r => r.data),
+
   setTags: (id: string, tags: string[]) =>
     apiClient.post<Recipe>(`/recipes/${id}/tags`, { tags }).then(r => r.data),
 
@@ -34,6 +63,9 @@ export const recipesApi = {
 
   deleteImage: (id: string, imageId: string) =>
     apiClient.delete(`/recipes/${id}/images/${imageId}`),
+
+  reorderImages: (id: string, imageIds: string[]) =>
+    apiClient.patch(`/recipes/${id}/images/reorder`, { imageIds }),
 
   setCoverImage: (id: string, imageId: string) =>
     apiClient.patch(`/recipes/${id}/cover-image`, { imageId }).then(r => r.data),

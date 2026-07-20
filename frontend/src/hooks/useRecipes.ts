@@ -1,12 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { recipesApi } from '../api/recipes.api';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { recipesApi, type RecipeListParams } from '../api/recipes.api';
 import { collectionsApi } from '../api/collections.api';
 import { collectionKeys } from './useCollections';
-import type { Recipe } from '../types';
+
+const PAGE_SIZE = 24;
 
 export const recipeKeys = {
   all: ['recipes'] as const,
-  list: (params?: { search?: string; tags?: string[]; site?: string }) => ['recipes', 'list', params] as const,
+  list: (params?: RecipeListParams) => ['recipes', 'list', params] as const,
   sites: () => ['recipes', 'sites'] as const,
   detail: (id: string) => ['recipes', 'detail', id] as const,
   images: (id: string) => ['recipes', 'images', id] as const,
@@ -14,10 +15,12 @@ export const recipeKeys = {
   shared: (token: string) => ['recipes', 'shared', token] as const,
 };
 
-export function useRecipes(params?: { search?: string; tags?: string[]; site?: string }) {
-  return useQuery({
+export function useRecipes(params?: Omit<RecipeListParams, 'limit' | 'offset'>) {
+  return useInfiniteQuery({
     queryKey: recipeKeys.list(params),
-    queryFn: () => recipesApi.list(params),
+    queryFn: ({ pageParam }) => recipesApi.list({ ...params, limit: PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => (lastPage.hasMore ? pages.length * PAGE_SIZE : undefined),
   });
 }
 
@@ -89,19 +92,7 @@ export function useCreateRecipe() {
 export function useDuplicateRecipe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (recipe: Recipe) => {
-      const created = await recipesApi.create(`${recipe.title} (copy)`);
-      await recipesApi.patch(created.id, {
-        ingredients: recipe.ingredients,
-        instructions: recipe.instructions,
-        prepTime: recipe.prepTime,
-        cookTime: recipe.cookTime,
-        servings: recipe.servings,
-        notes: recipe.notes,
-      });
-      if (recipe.tags.length) await recipesApi.setTags(created.id, recipe.tags.map((t) => t.name));
-      return created;
-    },
+    mutationFn: (id: string) => recipesApi.duplicate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: recipeKeys.all });
     },
@@ -168,6 +159,27 @@ export function useDeleteRecipeImage() {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: recipeKeys.images(id) });
       qc.invalidateQueries({ queryKey: recipeKeys.detail(id) });
+    },
+  });
+}
+
+export function useReorderImages() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, imageIds }: { id: string; imageIds: string[] }) => recipesApi.reorderImages(id, imageIds),
+    onMutate: async ({ id, imageIds }) => {
+      await qc.cancelQueries({ queryKey: recipeKeys.images(id) });
+      const previous = qc.getQueryData(recipeKeys.images(id));
+      qc.setQueryData(recipeKeys.images(id), (old: { id: string }[] | undefined) =>
+        old ? imageIds.map((imgId) => old.find((img) => img.id === imgId)!) : old
+      );
+      return { previous };
+    },
+    onError: (_err, { id }, context) => {
+      if (context?.previous) qc.setQueryData(recipeKeys.images(id), context.previous);
+    },
+    onSettled: (_, __, { id }) => {
+      qc.invalidateQueries({ queryKey: recipeKeys.images(id) });
     },
   });
 }

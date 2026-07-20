@@ -7,7 +7,7 @@ interface Props {
 
 export function StepList({ instructions }: Props) {
   if (instructions.length === 0) {
-    return <Text color="gray.500">No instructions listed.</Text>;
+    return <Text color="fg.muted">No instructions listed.</Text>;
   }
 
   return (

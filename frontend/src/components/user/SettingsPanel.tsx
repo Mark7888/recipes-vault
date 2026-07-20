@@ -65,7 +65,7 @@ export function SettingsPanel() {
 
   return (
     <VStack align="stretch" gap={4} w="full">
-      <Text color="gray.500" fontSize="sm">Signed in as <strong>{user?.username}</strong></Text>
+      <Text color="fg.muted" fontSize="sm">Signed in as <strong>{user?.username}</strong></Text>
       <form onSubmit={handleSubmit} style={{ width: '100%' }}>
         <VStack gap={4}>
           <Box w="full">
@@ -77,7 +77,7 @@ export function SettingsPanel() {
             />
           </Box>
           <Box w="full">
-            <Text mb={1} fontWeight="medium" fontSize="sm">Current Password <Text as="span" color="red.500">*</Text></Text>
+            <Text mb={1} fontWeight="medium" fontSize="sm">Current Password <Text as="span" color="fg.error">*</Text></Text>
             <PasswordInput
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -103,13 +103,13 @@ export function SettingsPanel() {
             </Box>
           )}
           {error && (
-            <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-              <Text color="red.600" fontSize="sm">{error}</Text>
+            <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+              <Text color="fg.error" fontSize="sm">{error}</Text>
             </Box>
           )}
           {success && (
-            <Box w="full" p={3} bg="green.50" borderRadius="md" borderWidth="1px" borderColor="green.200">
-              <Text color="green.700" fontSize="sm">{success}</Text>
+            <Box w="full" p={3} bg="bg.success" borderRadius="md" borderWidth="1px" borderColor="border.success">
+              <Text color="fg.success" fontSize="sm">{success}</Text>
             </Box>
           )}
           <Button type="submit" colorPalette="green" w="full" loading={loading}>

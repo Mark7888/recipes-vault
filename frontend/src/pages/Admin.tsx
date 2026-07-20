@@ -25,7 +25,7 @@ function resetStatus(reset: AdminPasswordReset): { label: string; color: string 
 function CopyBox({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <HStack gap={2} bg="green.50" p={3} borderRadius="md" borderWidth="1px" borderColor="green.200">
+    <HStack gap={2} bg="bg.success" p={3} borderRadius="md" borderWidth="1px" borderColor="border.success">
       <Text fontSize="sm" fontFamily="mono" flex="1" wordBreak="break-all">{url}</Text>
       <Button
         size="xs"
@@ -149,13 +149,13 @@ export default function Admin() {
 
   if (!token) {
     return (
-      <Box minH="100vh" bg="gray.50" display="flex" alignItems="center" justifyContent="center">
+      <Box minH="100vh" bg="bg.subtle" display="flex" alignItems="center" justifyContent="center">
         <Container maxW="sm">
-          <Box bg="white" p={8} borderRadius="xl" shadow="md">
+          <Box bg="bg.panel" p={8} borderRadius="xl" shadow="md">
             <VStack gap={6}>
               <VStack gap={1}>
-                <Heading size="lg" color="green.700">Admin Panel</Heading>
-                <Text fontSize="sm" color="gray.500">RecipeVault administration</Text>
+                <Heading size="lg" color="green.fg">Admin Panel</Heading>
+                <Text fontSize="sm" color="fg.muted">RecipeVault administration</Text>
               </VStack>
               <form onSubmit={handleLogin} style={{ width: '100%' }}>
                 <VStack gap={4}>
@@ -168,8 +168,8 @@ export default function Admin() {
                     <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required />
                   </Box>
                   {loginError && (
-                    <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-                      <Text color="red.600" fontSize="sm">{loginError}</Text>
+                    <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+                      <Text color="fg.error" fontSize="sm">{loginError}</Text>
                     </Box>
                   )}
                   <Button type="submit" colorPalette="green" w="full" loading={adminLogin.isPending}>
@@ -187,13 +187,13 @@ export default function Admin() {
   return (
     <Box maxW="860px" mx="auto" py={8} px={4}>
       <HStack justify="space-between" mb={8} align="baseline">
-        <Heading size="xl" color="green.700">Admin Panel</Heading>
+        <Heading size="xl" color="green.fg">Admin Panel</Heading>
         <Button size="sm" variant="ghost" colorPalette="red" onClick={handleLogout}>Logout</Button>
       </HStack>
 
       {actionError && (
-        <Box mb={6} p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-          <Text color="red.600" fontSize="sm">{actionError}</Text>
+        <Box mb={6} p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+          <Text color="fg.error" fontSize="sm">{actionError}</Text>
         </Box>
       )}
 
@@ -217,14 +217,14 @@ export default function Admin() {
 
         {newInviteUrl && (
           <Box mb={5}>
-            <Text fontSize="sm" fontWeight="semibold" mb={1} color="green.700">New invite URL — share this link:</Text>
+            <Text fontSize="sm" fontWeight="semibold" mb={1} color="green.fg">New invite URL — share this link:</Text>
             <CopyBox url={newInviteUrl} />
           </Box>
         )}
 
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
           {invites.length === 0 ? (
-            <Box p={4}><Text color="gray.500" fontSize="sm">No invite links yet.</Text></Box>
+            <Box p={4}><Text color="fg.muted" fontSize="sm">No invite links yet.</Text></Box>
           ) : (
             invites.map((inv, i) => {
               const inactive = inv.used || !!inv.revokedAt;
@@ -234,13 +234,13 @@ export default function Admin() {
                   px={4} py={3}
                   borderTopWidth={i > 0 ? '1px' : 0}
                   justify="space-between"
-                  bg={inactive ? 'gray.50' : 'white'}
+                  bg={inactive ? 'bg.subtle' : 'bg.panel'}
                   flexWrap="wrap"
                   gap={2}
                 >
                   <VStack align="start" gap={0} minW="0">
                     <HStack gap={2} flexWrap="wrap">
-                      <Text fontSize="sm" fontWeight="medium" color={inactive ? 'gray.400' : 'gray.800'}>
+                      <Text fontSize="sm" fontWeight="medium" color={inactive ? 'fg.subtle' : 'fg'}>
                         {inv.description}
                       </Text>
                       {inv.used && (
@@ -249,13 +249,13 @@ export default function Admin() {
                         </Badge>
                       )}
                     </HStack>
-                    <Text fontSize="xs" color="gray.400" fontFamily="mono" wordBreak="break-all">{inv.token}</Text>
+                    <Text fontSize="xs" color="fg.subtle" fontFamily="mono" wordBreak="break-all">{inv.token}</Text>
                   </VStack>
                   <HStack gap={3}>
                     <Badge colorPalette={inv.used ? 'gray' : inv.revokedAt ? 'red' : 'green'} size="sm">
                       {inv.used ? 'Used' : inv.revokedAt ? 'Revoked' : 'Active'}
                     </Badge>
-                    <Text fontSize="xs" color="gray.400">
+                    <Text fontSize="xs" color="fg.subtle">
                       {formatDate(inv.createdAt)}
                     </Text>
                     {!inactive && (
@@ -281,7 +281,7 @@ export default function Admin() {
         <Heading size="md" mb={4}>Users</Heading>
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
           {users.length === 0 ? (
-            <Box p={4}><Text color="gray.500" fontSize="sm">No registered users yet.</Text></Box>
+            <Box p={4}><Text color="fg.muted" fontSize="sm">No registered users yet.</Text></Box>
           ) : (
             users.map((user, i) => (
               <Box key={user.id}>
@@ -299,7 +299,7 @@ export default function Admin() {
                         <Badge colorPalette="red" size="sm">Deleting…</Badge>
                       )}
                     </HStack>
-                    <Text fontSize="xs" color="gray.400">
+                    <Text fontSize="xs" color="fg.subtle">
                       Joined {formatDate(user.createdAt)}
                     </Text>
                   </VStack>
@@ -344,7 +344,7 @@ export default function Admin() {
         <Heading size="md" mb={4}>Password Reset Links</Heading>
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
           {resets.length === 0 ? (
-            <Box p={4}><Text color="gray.500" fontSize="sm">No password reset links yet.</Text></Box>
+            <Box p={4}><Text color="fg.muted" fontSize="sm">No password reset links yet.</Text></Box>
           ) : (
             resets.map((reset, i) => {
               const status = resetStatus(reset);
@@ -355,19 +355,19 @@ export default function Admin() {
                   px={4} py={3}
                   borderTopWidth={i > 0 ? '1px' : 0}
                   justify="space-between"
-                  bg={active ? 'white' : 'gray.50'}
+                  bg={active ? 'bg.panel' : 'bg.subtle'}
                   flexWrap="wrap"
                   gap={2}
                 >
                   <VStack align="start" gap={0} minW="0">
-                    <Text fontSize="sm" fontWeight="medium" color={active ? 'gray.800' : 'gray.400'}>
+                    <Text fontSize="sm" fontWeight="medium" color={active ? 'fg' : 'fg.subtle'}>
                       {reset.user.username}
                     </Text>
-                    <Text fontSize="xs" color="gray.400" fontFamily="mono" wordBreak="break-all">{reset.token}</Text>
+                    <Text fontSize="xs" color="fg.subtle" fontFamily="mono" wordBreak="break-all">{reset.token}</Text>
                   </VStack>
                   <HStack gap={3}>
                     <Badge colorPalette={status.color} size="sm">{status.label}</Badge>
-                    <Text fontSize="xs" color="gray.400">
+                    <Text fontSize="xs" color="fg.subtle">
                       {active
                         ? `Expires ${formatDateTime(reset.expiresAt)}`
                         : formatDate(reset.createdAt)}

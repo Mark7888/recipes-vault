@@ -26,7 +26,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', l
               <Dialog.Title>{title}</Dialog.Title>
             </Dialog.Header>
             <Dialog.Body>
-              <Text color="gray.600">{message}</Text>
+              <Text color="fg.muted">{message}</Text>
             </Dialog.Body>
             <Dialog.Footer>
               <Button variant="ghost" onClick={onCancel}>Cancel</Button>

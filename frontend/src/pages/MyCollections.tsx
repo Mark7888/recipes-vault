@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import {
-  Box, Button, Flex, Grid, GridItem, Heading, HStack, Input, Spinner, Tabs, Text, VStack
+  Box, Badge, Button, Flex, Grid, GridItem, Heading, HStack, Input, Spinner, Tabs, Text, VStack
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
-import { useCollections, useCreateCollection } from '../hooks/useCollections';
+import {
+  useCollections, useCreateCollection, useIncomingTransfers, useAcceptTransfer, useRejectTransfer,
+} from '../hooks/useCollections';
 import { useAuthStore } from '../store/authStore';
 import { RoleBadge } from '../components/collection/RoleBadge';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import type { IncomingTransfer } from '../types';
 
 function CollectionGrid({ collections, userId }: { collections: ReturnType<typeof useCollections>['data']; userId: string }) {
   if (!collections || collections.length === 0) return null;
@@ -25,16 +29,19 @@ function CollectionGrid({ collections, userId }: { collections: ReturnType<typeo
                 p={4}
                 _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
                 transition="all 0.2s"
-                bg="white"
+                bg="bg.panel"
                 h="full"
               >
                 <VStack align="start" gap={2}>
                   <Heading size="sm">{collection.name}</Heading>
-                  <Text fontSize="sm" color="gray.500">{collection._count?.recipes ?? 0} recipes</Text>
-                  <HStack gap={2}>
+                  <Text fontSize="sm" color="fg.muted">{collection._count?.recipes ?? 0} recipes</Text>
+                  <HStack gap={2} flexWrap="wrap">
                     {myRole && <RoleBadge role={myRole} />}
-                    <Text fontSize="sm" color="gray.400">{collection.members.length} members</Text>
+                    <Text fontSize="sm" color="fg.subtle">{collection.members.length} members</Text>
                   </HStack>
+                  {collection.pendingTransfer && (
+                    <Badge colorPalette="orange" size="sm">Transfer pending</Badge>
+                  )}
                 </VStack>
               </Box>
             </Link>
@@ -45,11 +52,61 @@ function CollectionGrid({ collections, userId }: { collections: ReturnType<typeo
   );
 }
 
+function PendingTransferCard({ transfer }: { transfer: IncomingTransfer }) {
+  const acceptTransfer = useAcceptTransfer();
+  const rejectTransfer = useRejectTransfer();
+  const [confirmReject, setConfirmReject] = useState(false);
+
+  const handleReject = async () => {
+    await rejectTransfer.mutateAsync(transfer.collection.id);
+    setConfirmReject(false);
+  };
+
+  return (
+    <Box borderWidth="1px" borderRadius="lg" p={4} bg="bg.panel">
+      <VStack align="start" gap={2}>
+        <Heading size="sm">{transfer.collection.name}</Heading>
+        <Text fontSize="sm" color="fg.muted">
+          {transfer.collection._count?.recipes ?? 0} recipes · from {transfer.fromUser.username}
+        </Text>
+        <HStack gap={2} pt={1}>
+          <Button
+            size="sm"
+            colorPalette="green"
+            loading={acceptTransfer.isPending}
+            onClick={() => acceptTransfer.mutate(transfer.collection.id)}
+          >
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            colorPalette="red"
+            onClick={() => setConfirmReject(true)}
+          >
+            Reject
+          </Button>
+        </HStack>
+      </VStack>
+      <ConfirmDialog
+        open={confirmReject}
+        title="Reject transfer?"
+        message={`You'll decline ownership of "${transfer.collection.name}". ${transfer.fromUser.username} will remain the Owner.`}
+        confirmLabel="Reject"
+        loading={rejectTransfer.isPending}
+        onConfirm={handleReject}
+        onCancel={() => setConfirmReject(false)}
+      />
+    </Box>
+  );
+}
+
 export default function Collections() {
   const [newName, setNewName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const { data: collections, isLoading } = useCollections();
+  const { data: incomingTransfers, isLoading: isLoadingTransfers } = useIncomingTransfers();
   const createCollection = useCreateCollection();
   const { user } = useAuthStore();
 
@@ -76,6 +133,9 @@ export default function Collections() {
             <Tabs.Trigger value="shared" flex={{ base: '1', md: 'unset' }} justifyContent="center">
               Shared with me {shared ? `(${shared.length})` : ''}
             </Tabs.Trigger>
+            <Tabs.Trigger value="pending" flex={{ base: '1', md: 'unset' }} justifyContent="center">
+              Pending {incomingTransfers ? `(${incomingTransfers.length})` : ''}
+            </Tabs.Trigger>
           </Tabs.List>
           <Button colorPalette="green" size="sm" onClick={() => setShowCreate((v) => !v)}>
             + New Collection
@@ -91,7 +151,7 @@ export default function Collections() {
         />
 
         {showCreate && (
-          <Box mb={6} p={4} borderWidth="1px" borderRadius="md" bg="gray.50">
+          <Box mb={6} p={4} borderWidth="1px" borderRadius="md" bg="bg.subtle">
             <form onSubmit={handleCreate}>
               <Flex gap={2} direction={{ base: 'column', sm: 'row' }}>
                 <Input
@@ -119,7 +179,7 @@ export default function Collections() {
                 <CollectionGrid collections={owned} userId={user!.id} />
               ) : (
                 <Box textAlign="center" py={12}>
-                  <Text color="gray.500">
+                  <Text color="fg.muted">
                     {search ? 'No collections match your search.' : 'No collections yet. Create your first one!'}
                   </Text>
                 </Box>
@@ -131,9 +191,25 @@ export default function Collections() {
                 <CollectionGrid collections={shared} userId={user!.id} />
               ) : (
                 <Box textAlign="center" py={12}>
-                  <Text color="gray.500">
+                  <Text color="fg.muted">
                     {search ? 'No collections match your search.' : 'No collections have been shared with you yet.'}
                   </Text>
+                </Box>
+              )}
+            </Tabs.Content>
+
+            <Tabs.Content value="pending">
+              {isLoadingTransfers ? (
+                <Box textAlign="center" py={12}><Spinner size="xl" /></Box>
+              ) : incomingTransfers && incomingTransfers.length > 0 ? (
+                <VStack align="stretch" gap={3} maxW="500px">
+                  {incomingTransfers.map((transfer) => (
+                    <PendingTransferCard key={transfer.id} transfer={transfer} />
+                  ))}
+                </VStack>
+              ) : (
+                <Box textAlign="center" py={12}>
+                  <Text color="fg.muted">No pending ownership transfers.</Text>
                 </Box>
               )}
             </Tabs.Content>

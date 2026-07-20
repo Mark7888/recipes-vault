@@ -1,10 +1,19 @@
 import { useRef, useState } from 'react';
 import {
-  Box, Button, Grid, GridItem, Image, Text, VStack, HStack, Badge
+  Button, Grid, Text, VStack, HStack
 } from '@chakra-ui/react';
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
+  SortableContext, rectSortingStrategy, arrayMove, sortableKeyboardCoordinates
+} from '@dnd-kit/sortable';
 import type { Image as RecipeImage } from '../../types';
-import { useUploadRecipeImage, useDeleteRecipeImage, useSetCoverImage } from '../../hooks/useRecipes';
+import { useUploadRecipeImage, useDeleteRecipeImage, useSetCoverImage, useReorderImages } from '../../hooks/useRecipes';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { SortableImageItem } from './SortableImageItem';
+import { ImageLightbox } from './ImageLightbox';
 
 interface Props {
   recipeId: string;
@@ -17,7 +26,14 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
   const uploadMutation = useUploadRecipeImage();
   const deleteMutation = useDeleteRecipeImage();
   const setCoverMutation = useSetCoverImage();
+  const reorderMutation = useReorderImages();
   const [imageToDelete, setImageToDelete] = useState<RecipeImage | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const handleDelete = async () => {
     if (!imageToDelete) return;
@@ -30,6 +46,16 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
     if (!file) return;
     await uploadMutation.mutateAsync({ id: recipeId, file });
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = images.findIndex((img) => img.id === active.id);
+    const newIndex = images.findIndex((img) => img.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(images, oldIndex, newIndex);
+    reorderMutation.mutate({ id: recipeId, imageIds: reordered.map((img) => img.id) });
   };
 
   return (
@@ -47,50 +73,24 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFileChange} />
       </HStack>
       {images.length > 0 ? (
-        <Grid templateColumns="repeat(auto-fill, minmax(140px, 1fr))" gap={3} w="full">
-          {images.map((img) => (
-            <GridItem key={img.id} position="relative">
-              <Box
-                borderRadius="md"
-                overflow="hidden"
-                borderWidth={img.id === coverImageId ? '2px' : '1px'}
-                borderColor={img.id === coverImageId ? 'green.500' : 'gray.200'}
-              >
-                <Image
-                  src={`/images/${img.filePath}`}
-                  alt="Recipe image"
-                  h="100px"
-                  w="full"
-                  objectFit="cover"
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={images.map((img) => img.id)} strategy={rectSortingStrategy}>
+            <Grid templateColumns="repeat(auto-fill, minmax(140px, 1fr))" gap={3} w="full">
+              {images.map((img, index) => (
+                <SortableImageItem
+                  key={img.id}
+                  image={img}
+                  isCover={img.id === coverImageId}
+                  onOpen={() => setLightboxIndex(index)}
+                  onSetCover={() => setCoverMutation.mutate({ id: recipeId, imageId: img.id })}
+                  onRemove={() => setImageToDelete(img)}
                 />
-                <VStack gap={1} p={1}>
-                  {img.id === coverImageId ? (
-                    <Badge colorPalette="green" size="sm">Cover</Badge>
-                  ) : (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      colorPalette="green"
-                      onClick={() => setCoverMutation.mutate({ id: recipeId, imageId: img.id })}
-                    >
-                      Set cover
-                    </Button>
-                  )}
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    colorPalette="red"
-                    onClick={() => setImageToDelete(img)}
-                  >
-                    Remove
-                  </Button>
-                </VStack>
-              </Box>
-            </GridItem>
-          ))}
-        </Grid>
+              ))}
+            </Grid>
+          </SortableContext>
+        </DndContext>
       ) : (
-        <Text color="gray.500" fontSize="sm">No images yet. Upload one above.</Text>
+        <Text color="fg.muted" fontSize="sm">No images yet. Upload one above.</Text>
       )}
 
       <ConfirmDialog
@@ -101,6 +101,13 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
         loading={deleteMutation.isPending}
         onConfirm={handleDelete}
         onCancel={() => setImageToDelete(null)}
+      />
+
+      <ImageLightbox
+        images={images}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
       />
     </VStack>
   );

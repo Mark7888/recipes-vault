@@ -23,20 +23,20 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
         overflow="hidden"
         _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
         transition="all 0.2s"
-        bg="white"
+        bg="bg.panel"
         h="full"
       >
         {coverUrl ? (
           <Image src={coverUrl} alt={recipe.title} h={{ base: '110px', md: '160px' }} w="full" objectFit="cover" />
         ) : (
-          <Box h={{ base: '110px', md: '160px' }} bg="gray.100" color="gray.400" display="flex" alignItems="center" justifyContent="center">
+          <Box h={{ base: '110px', md: '160px' }} bg="bg.muted" color="fg.subtle" display="flex" alignItems="center" justifyContent="center">
             <ImageIcon size={36} />
           </Box>
         )}
         <VStack p={3} align="start" gap={2}>
           <Text
             fontWeight="semibold"
-            color="gray.800"
+            color="fg"
             overflow="hidden"
             textOverflow="ellipsis"
             whiteSpace="nowrap"
@@ -59,15 +59,15 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
               <Badge colorPalette="gray" size="sm">+{recipe.tags.length - 3}</Badge>
             )}
           </HStack>
-          <HStack gap={3} rowGap={0} fontSize="sm" color="gray.500" flexWrap="wrap">
+          <HStack gap={3} rowGap={0} fontSize="sm" color="fg.muted" flexWrap="wrap">
             {recipe.prepTime && <Text>{recipe.prepTime}m prep</Text>}
             {recipe.cookTime && <Text>{recipe.cookTime}m cook</Text>}
             {recipe.servings && <Text>{recipe.servings} servings</Text>}
           </HStack>
           {(addedBy || onRemove) && (
-            <HStack w="full" justify="space-between" pt={1} borderTopWidth="1px" borderColor="gray.100">
+            <HStack w="full" justify="space-between" pt={1} borderTopWidth="1px" borderColor="border.muted">
               {addedBy && (
-                <Text fontSize="xs" color="gray.400">
+                <Text fontSize="xs" color="fg.subtle">
                   Added by {addedBy}
                 </Text>
               )}
@@ -79,8 +79,8 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
                     e.stopPropagation();
                     if (!isRemoving) onRemove();
                   }}
-                  color="red.400"
-                  _hover={{ color: 'red.600' }}
+                  color="fg.error"
+                  _hover={{ color: 'red.solid' }}
                   cursor={isRemoving ? 'default' : 'pointer'}
                   display="flex"
                   alignItems="center"

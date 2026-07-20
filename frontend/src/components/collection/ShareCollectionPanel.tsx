@@ -45,12 +45,12 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
         </Collapsible.Trigger>
 
         <Collapsible.Content position="absolute" top="calc(100% + 8px)" right={0} zIndex={10}>
-          <Box bg="white" shadow="lg" borderWidth="1px" borderRadius="lg" overflow="hidden" minW={{ base: '270px', sm: '360px' }} maxW="88vw">
+          <Box bg="bg.panel" shadow="lg" borderWidth="1px" borderRadius="lg" overflow="hidden" minW={{ base: '270px', sm: '360px' }} maxW="88vw">
             {/* Current members (non-owner) */}
             {nonOwnerMembers.length > 0 && (
               <Box borderBottomWidth="1px">
-                <Box px={4} py={2} bg="gray.50">
-                  <Text fontSize="xs" fontWeight="semibold" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                <Box px={4} py={2} bg="bg.subtle">
+                  <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" letterSpacing="wide">
                     Shared with
                   </Text>
                 </Box>
@@ -84,7 +84,7 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
             )}
 
             {/* User search */}
-            <Box px={3} py={2} borderBottomWidth="1px" bg="gray.50">
+            <Box px={3} py={2} borderBottomWidth="1px" bg="bg.subtle">
               <Input
                 size="sm"
                 placeholder="Search users by username…"
@@ -97,7 +97,7 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
             {query.trim().length >= 2 && (
               results.length === 0 ? (
                 <Box px={4} py={3}>
-                  <Text fontSize="sm" color="gray.500">No users found.</Text>
+                  <Text fontSize="sm" color="fg.muted">No users found.</Text>
                 </Box>
               ) : (
                 <VStack gap={0} align="stretch">
@@ -111,7 +111,7 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
                         py={3}
                         justify="space-between"
                         borderTopWidth={i > 0 ? '1px' : 0}
-                        bg={existing ? 'blue.50' : 'white'}
+                        bg={existing ? 'blue.subtle' : 'bg.panel'}
                       >
                         <HStack gap={2}>
                           <Text fontSize="sm" fontWeight="medium">{u.username}</Text>
@@ -160,7 +160,7 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
 
             {query.trim().length < 2 && query.length > 0 && (
               <Box px={4} py={3}>
-                <Text fontSize="sm" color="gray.400">Type at least 2 characters to search.</Text>
+                <Text fontSize="sm" color="fg.subtle">Type at least 2 characters to search.</Text>
               </Box>
             )}
           </Box>

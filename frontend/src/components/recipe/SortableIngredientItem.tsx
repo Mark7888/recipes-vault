@@ -22,7 +22,7 @@ export function SortableIngredientItem({ id, ingredient, onChange, onSplit, onRe
       style={{ transform: CSS.Transform.toString(transform), transition }}
       gap={{ base: 1, sm: 2 }}
       w="full"
-      bg={isDragging ? 'gray.50' : undefined}
+      bg={isDragging ? 'bg.subtle' : undefined}
       opacity={isDragging ? 0.5 : 1}
       zIndex={isDragging ? 1 : undefined}
       position="relative"
@@ -34,7 +34,7 @@ export function SortableIngredientItem({ id, ingredient, onChange, onSplit, onRe
         aria-label="Drag to reorder ingredient"
         cursor="grab"
         _active={{ cursor: 'grabbing' }}
-        color="gray.400"
+        color="fg.subtle"
         display="flex"
         flexShrink={0}
       >

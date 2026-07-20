@@ -1,7 +1,9 @@
-import { Box, Flex, HStack, Text, Button, Popover, Portal } from '@chakra-ui/react';
+import { Box, Flex, HStack, Text, Button, IconButton, Popover, Portal } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { SettingsPanel } from '../user/SettingsPanel';
+import { PreferencesPanel } from '../user/PreferencesPanel';
+import { SettingsIcon } from '../ui/icons';
 
 const desktopLinkStyle: React.CSSProperties = {
   color: 'white',
@@ -27,6 +29,31 @@ export function NavBar() {
           <Link to="/collections" style={desktopLinkStyle}>Collections</Link>
           <Link to="/shopping" style={desktopLinkStyle}>Shopping</Link>
           <Link to="/recipes/add" style={desktopLinkStyle}>+ Add Recipe</Link>
+          <Popover.Root positioning={{ placement: 'bottom-end' }}>
+            <Popover.Trigger asChild>
+              <IconButton
+                aria-label="Preferences"
+                size="sm"
+                variant="outline"
+                colorPalette="gray"
+                color="white"
+                borderColor="whiteAlpha.600"
+                _hover={{ bg: 'green.600' }}
+              >
+                <SettingsIcon size={16} />
+              </IconButton>
+            </Popover.Trigger>
+            <Portal>
+              <Popover.Positioner>
+                <Popover.Content w="300px" maxW="90vw">
+                  <Popover.Arrow />
+                  <Popover.Body>
+                    <PreferencesPanel />
+                  </Popover.Body>
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
           <Popover.Root positioning={{ placement: 'bottom-end' }}>
             <Popover.Trigger asChild>
               <Button size="sm" variant="outline" colorPalette="gray" color="white" borderColor="whiteAlpha.600" _hover={{ bg: 'green.600' }}>

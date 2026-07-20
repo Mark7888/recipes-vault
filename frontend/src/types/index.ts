@@ -93,11 +93,23 @@ export interface RecipeCollection {
   recipe?: Recipe;
 }
 
+export interface OwnershipTransfer {
+  id: string;
+  fromUser: { id: string; username: string };
+  toUser: { id: string; username: string };
+  createdAt: string;
+}
+
+export interface IncomingTransfer extends OwnershipTransfer {
+  collection: Collection;
+}
+
 export interface Collection {
   id: string;
   name: string;
   members: CollectionMember[];
   recipes?: RecipeCollection[];
   _count?: { recipes: number };
+  pendingTransfer?: OwnershipTransfer | null;
   createdAt: string;
 }

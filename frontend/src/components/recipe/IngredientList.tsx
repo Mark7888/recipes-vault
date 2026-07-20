@@ -26,7 +26,7 @@ export function IngredientList({ ingredients, checked: checkedProp, onToggle }: 
   };
 
   if (ingredients.length === 0) {
-    return <Text color="gray.500">No ingredients listed.</Text>;
+    return <Text color="fg.muted">No ingredients listed.</Text>;
   }
 
   return (
@@ -36,7 +36,7 @@ export function IngredientList({ ingredients, checked: checkedProp, onToggle }: 
           <Checkbox checked={checked.has(i)} onToggle={() => toggle(i)} size={16} />
           <Text
             textDecoration={checked.has(i) ? 'line-through' : 'none'}
-            color={checked.has(i) ? 'gray.400' : 'gray.800'}
+            color={checked.has(i) ? 'fg.subtle' : 'fg'}
           >
             {[ing.amount, ing.unit, ing.name].filter(Boolean).join(' ')}
           </Text>

@@ -1,5 +1,5 @@
 import {
-  Box, Button, Flex, Heading, HStack, Input, Text, VStack, Badge, Spinner, Image
+  Box, Button, Flex, Heading, HStack, Input, Text, VStack, Badge, Spinner
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { IngredientList } from '../components/recipe/IngredientList';
 import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
 import { AddToCollectionPanel } from '../components/recipe/AddToCollectionPanel';
+import { ImageGallery } from '../components/recipe/ImageGallery';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { CartIcon, CheckIcon, CopyIcon, EditIcon, ExternalLinkIcon, ShareIcon } from '../components/ui/icons';
 
@@ -60,14 +61,13 @@ export default function RecipeView() {
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (isError || !recipe) {
     return (
-      <Box p={4} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-        <Text color="red.600">Recipe not found.</Text>
+      <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+        <Text color="fg.error">Recipe not found.</Text>
       </Box>
     );
   }
 
   const isOwner = recipe.ownerId === user?.id;
-  const coverUrl = recipe.coverImage ? `/images/${recipe.coverImage.filePath}` : null;
 
   const handleDelete = async () => {
     await deleteRecipe.mutateAsync(recipe.id);
@@ -76,16 +76,14 @@ export default function RecipeView() {
   };
 
   const handleDuplicate = async () => {
-    const copy = await duplicateRecipe.mutateAsync(recipe);
+    const copy = await duplicateRecipe.mutateAsync(recipe.id);
     navigate(`/recipes/${copy.id}/edit`);
   };
 
   return (
     <Box maxW="800px" mx="auto" py={6}>
       <VStack align="start" gap={6}>
-        {coverUrl && (
-          <Image src={coverUrl} alt={recipe.title} w="full" maxH={{ base: '240px', md: '400px' }} objectFit="cover" borderRadius="xl" />
-        )}
+        <ImageGallery images={recipe.images ?? []} coverImageId={recipe.coverImageId} title={recipe.title} />
         <Flex
           justify="space-between"
           w="full"
@@ -139,7 +137,7 @@ export default function RecipeView() {
             <HStack gap={2}>
               <Input
                 size="sm"
-                bg="white"
+                bg="bg.panel"
                 readOnly
                 value={shareUrl}
                 onFocus={(e) => e.currentTarget.select()}
@@ -153,7 +151,7 @@ export default function RecipeView() {
 
         <AddToCollectionPanel recipeId={recipe.id} />
 
-        <HStack gap={4} color="gray.600" fontSize="sm" flexWrap="wrap">
+        <HStack gap={4} color="fg.muted" fontSize="sm" flexWrap="wrap">
           {recipe.prepTime && <Text>{recipe.prepTime} min prep</Text>}
           {recipe.cookTime && <Text>{recipe.cookTime} min cook</Text>}
           {recipe.servings && <Text>{recipe.servings} servings</Text>}
@@ -166,8 +164,8 @@ export default function RecipeView() {
         </HStack>
 
         {recipe.notes && (
-          <Box bg="yellow.50" p={4} borderRadius="md" borderLeftWidth="4px" borderLeftColor="yellow.400">
-            <Text>{recipe.notes}</Text>
+          <Box bg="yellow.subtle" p={4} borderRadius="md" borderLeftWidth="4px" borderLeftColor="yellow.border">
+            <Text color="yellow.fg">{recipe.notes}</Text>
           </Box>
         )}
 
@@ -189,7 +187,7 @@ export default function RecipeView() {
             };
             return (
               <VStack align="start" gap={1} mt={4}>
-                <Text fontSize="xs" color="gray.500">
+                <Text fontSize="xs" color="fg.muted">
                   Check what you already have at home, then add the rest to your shopping list.
                 </Text>
                 <Button

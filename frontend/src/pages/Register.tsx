@@ -16,8 +16,8 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
 
 function ErrorBox({ message }: { message: string }) {
   return (
-    <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-      <Text color="red.600" fontSize="sm">{message}</Text>
+    <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+      <Text color="fg.error" fontSize="sm">{message}</Text>
     </Box>
   );
 }
@@ -69,11 +69,11 @@ export default function Register() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50" display="flex" alignItems="center" justifyContent="center">
+    <Box minH="100vh" bg="bg.subtle" display="flex" alignItems="center" justifyContent="center">
       <Container maxW="sm">
-        <Box bg="white" p={8} borderRadius="xl" shadow="md">
+        <Box bg="bg.panel" p={8} borderRadius="xl" shadow="md">
           <VStack gap={6}>
-            <Heading size="lg" color="green.700">Create Account</Heading>
+            <Heading size="lg" color="green.fg">Create Account</Heading>
             {inviteError === null ? (
               <Spinner color="green.600" />
             ) : inviteError ? (
@@ -115,7 +115,7 @@ export default function Register() {
                 </VStack>
               </form>
             )}
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="fg.muted">
               Already have an account?{' '}
               <Link to="/login" style={{ color: '#16a34a', fontWeight: 600 }}>Sign in</Link>
             </Text>

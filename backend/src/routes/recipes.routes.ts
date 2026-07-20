@@ -6,10 +6,12 @@ import {
   getRecipe,
   patchRecipe,
   removeRecipe,
+  duplicateRecipeHandler,
   updateTags,
   listImages,
   uploadImage,
   removeImage,
+  reorderImagesHandler,
   setCoverImage,
   getRecipeCollections,
   listRecipeSites,
@@ -26,9 +28,11 @@ router.get('/sites', listRecipeSites);
 router.get('/:id', getRecipe);
 router.patch('/:id', patchRecipe);
 router.delete('/:id', removeRecipe);
+router.post('/:id/duplicate', duplicateRecipeHandler);
 router.post('/:id/tags', updateTags);
 router.get('/:id/images', listImages);
 router.post('/:id/images', upload.single('image'), uploadImage);
+router.patch('/:id/images/reorder', reorderImagesHandler);
 router.delete('/:id/images/:imageId', removeImage);
 router.patch('/:id/cover-image', setCoverImage);
 router.get('/:id/collections', getRecipeCollections);

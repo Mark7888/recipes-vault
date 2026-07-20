@@ -55,8 +55,8 @@ export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props
               display="inline-flex"
               alignItems="center"
               gap={1}
-              bg="green.100"
-              color="green.800"
+              bg="green.subtle"
+              color="green.fg"
               px={2}
               py={0.5}
               borderRadius="md"
@@ -101,7 +101,7 @@ export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props
           left={0}
           right={0}
           zIndex={10}
-          bg="white"
+          bg="bg.panel"
           borderWidth="1px"
           borderRadius="md"
           shadow="md"
@@ -120,7 +120,7 @@ export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props
                   px={3}
                   py={2}
                   cursor="pointer"
-                  _hover={{ bg: 'gray.50' }}
+                  _hover={{ bg: 'bg.subtle' }}
                   onMouseDown={() => addTag(tag.name)}
                 >
                   <Text fontSize="sm">{tag.name}</Text>
@@ -132,10 +132,10 @@ export function TagInput({ value, onChange, placeholder = 'Add tags...' }: Props
               px={3}
               py={2}
               cursor="pointer"
-              _hover={{ bg: 'gray.50' }}
+              _hover={{ bg: 'bg.subtle' }}
               onMouseDown={() => addTag(inputValue)}
             >
-              <Text fontSize="sm" color="gray.500">Create tag "{inputValue}"</Text>
+              <Text fontSize="sm" color="fg.muted">Create tag "{inputValue}"</Text>
             </Box>
           ) : null}
         </Box>

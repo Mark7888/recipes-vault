@@ -6,6 +6,7 @@ import {
   getRecipesForUser,
   updateRecipe,
   deleteRecipe,
+  duplicateRecipe,
   setRecipeTags,
   isRecipeAccessibleByUser,
   getRecipeSitesForUser,
@@ -14,9 +15,11 @@ import {
 } from '../services/recipes.service.js';
 import { getCollectionIdsContainingRecipe } from '../services/collections.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
-import { saveImage, saveImageRecord, deleteImageFile } from '../services/image-storage.service.js';
+import { saveImage, saveImageRecord, deleteImageFile, reorderImages } from '../services/image-storage.service.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+
+const SORT_OPTIONS = ['newest', 'oldest', 'title-asc', 'title-desc', 'prep-time'] as const;
 
 export async function listRecipes(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
@@ -24,8 +27,12 @@ export async function listRecipes(req: Request, res: Response): Promise<void> {
   const tags = req.query['tags[]'] as string | string[] | undefined;
   const tagArray = tags ? (Array.isArray(tags) ? tags : [tags]) : undefined;
   const site = req.query.site as string | undefined;
-  const recipes = await getRecipesForUser(userId, search, tagArray, site);
-  res.json(recipes);
+  const sortParam = req.query.sort as string | undefined;
+  const sort = SORT_OPTIONS.includes(sortParam as typeof SORT_OPTIONS[number]) ? (sortParam as typeof SORT_OPTIONS[number]) : 'newest';
+  const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const result = await getRecipesForUser(userId, { search, tags: tagArray, site, sort, limit, offset });
+  res.json(result);
 }
 
 export async function listRecipeSites(req: Request, res: Response): Promise<void> {
@@ -82,6 +89,17 @@ export async function removeRecipe(req: Request, res: Response): Promise<void> {
   res.status(204).send();
 }
 
+export async function duplicateRecipeHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  const recipe = await getRecipeById(id);
+  if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
+  const accessible = await isRecipeAccessibleByUser(id, userId);
+  if (!accessible) { res.status(403).json({ error: 'Forbidden' }); return; }
+  const copy = await duplicateRecipe(id, userId);
+  res.status(201).json(copy);
+}
+
 export async function updateTags(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
@@ -103,8 +121,23 @@ export async function listImages(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   const accessible = await isRecipeAccessibleByUser(id, userId);
   if (!accessible) { res.status(403).json({ error: 'Forbidden' }); return; }
-  const images = await prisma.image.findMany({ where: { recipeId: id } });
+  const images = await prisma.image.findMany({ where: { recipeId: id }, orderBy: { order: 'asc' } });
   res.json(images);
+}
+
+export async function reorderImagesHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  const recipe = await getRecipeById(id);
+  if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
+  if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+  try {
+    const { imageIds } = z.object({ imageIds: z.array(z.string().uuid()) }).parse(req.body);
+    await reorderImages(recipe.id, imageIds);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 }
 
 export async function uploadImage(req: Request, res: Response): Promise<void> {

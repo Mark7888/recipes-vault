@@ -15,6 +15,8 @@ import MyCollections from './pages/MyCollections';
 import CollectionView from './pages/CollectionView';
 import CollectionEdit from './pages/CollectionEdit';
 import Settings from './pages/Settings';
+import SettingsPreferences from './pages/SettingsPreferences';
+import TagManagement from './pages/TagManagement';
 import ShoppingList from './pages/ShoppingList';
 import NotFound from './pages/NotFound';
 
@@ -57,6 +59,8 @@ export default function App() {
           <Route path="collections/:id/edit" element={<CollectionEdit />} />
           <Route path="shopping" element={<ShoppingList />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="settings/preferences" element={<SettingsPreferences />} />
+          <Route path="settings/tags" element={<TagManagement />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

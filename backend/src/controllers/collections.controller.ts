@@ -13,6 +13,11 @@ import {
   addRecipeToCollection,
   removeRecipeFromCollection,
   getUserRoleInCollection,
+  initiateOwnershipTransfer,
+  cancelOwnershipTransfer,
+  acceptOwnershipTransfer,
+  rejectOwnershipTransfer,
+  getIncomingTransfersForUser,
 } from '../services/collections.service.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
@@ -91,6 +96,57 @@ export async function removeMemberHandler(req: Request, res: Response): Promise<
   const userId = req.params.userId as string;
   try {
     await removeMember(id, userId);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function listIncomingTransfersHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const transfers = await getIncomingTransfersForUser(userId);
+  res.json(transfers);
+}
+
+export async function transferOwnershipHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  try {
+    const { toUserId } = z.object({ toUserId: z.string().uuid() }).parse(req.body);
+    const transfer = await initiateOwnershipTransfer(id, userId, toUserId);
+    res.status(201).json(transfer);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function cancelTransferHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  try {
+    await cancelOwnershipTransfer(id, userId);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function acceptTransferHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  try {
+    await acceptOwnershipTransfer(id, userId);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function rejectTransferHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  try {
+    await rejectOwnershipTransfer(id, userId);
     res.status(204).send();
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

@@ -33,7 +33,7 @@ export default function AddRecipe() {
     <Box maxW="600px" mx="auto" py={8}>
       <VStack align="start" gap={6}>
         <Heading size="lg">Add New Recipe</Heading>
-        <Text color="gray.600">
+        <Text color="fg.muted">
           Paste a recipe URL below to automatically extract the recipe details.
         </Text>
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
@@ -49,8 +49,8 @@ export default function AddRecipe() {
               />
             </Box>
             {capture.isError && (
-              <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-                <Text color="red.600" fontSize="sm">
+              <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+                <Text color="fg.error" fontSize="sm">
                   {(capture.error as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to capture recipe. Please try again.'}
                 </Text>
               </Box>
@@ -62,12 +62,12 @@ export default function AddRecipe() {
         </form>
         <HStack w="full" gap={3}>
           <Box flex="1" borderTopWidth="1px" />
-          <Text fontSize="sm" color="gray.500">or</Text>
+          <Text fontSize="sm" color="fg.muted">or</Text>
           <Box flex="1" borderTopWidth="1px" />
         </HStack>
         {createRecipe.isError && (
-          <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-            <Text color="red.600" fontSize="sm">Failed to create recipe. Please try again.</Text>
+          <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+            <Text color="fg.error" fontSize="sm">Failed to create recipe. Please try again.</Text>
           </Box>
         )}
         <Button

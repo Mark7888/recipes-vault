@@ -1,15 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Field, Flex, Grid, Heading, HStack, Input, NativeSelect, Spinner, Text } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useRecipes, useRecipeSites } from '../hooks/useRecipes';
 import { RecipeCard } from '../components/recipe/RecipeCard';
 import { TagInput } from '../components/recipe/TagInput';
 import { ChevronDownIcon } from '../components/ui/icons';
-import type { Recipe } from '../types';
+import type { RecipeSort } from '../api/recipes.api';
 
-type SortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'prep-time';
-
-const SORT_LABELS: Record<SortOption, string> = {
+const SORT_LABELS: Record<RecipeSort, string> = {
   newest: 'Newest first',
   oldest: 'Oldest first',
   'title-asc': 'Title (A–Z)',
@@ -17,30 +15,42 @@ const SORT_LABELS: Record<SortOption, string> = {
   'prep-time': 'Prep time (shortest)',
 };
 
-function sortRecipes(recipes: Recipe[], sort: SortOption): Recipe[] {
-  const sorted = [...recipes];
-  switch (sort) {
-    case 'newest': return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    case 'oldest': return sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    case 'title-asc': return sorted.sort((a, b) => a.title.localeCompare(b.title));
-    case 'title-desc': return sorted.sort((a, b) => b.title.localeCompare(a.title));
-    case 'prep-time': return sorted.sort((a, b) => (a.prepTime ?? Infinity) - (b.prepTime ?? Infinity));
-  }
-}
-
 export default function MyRecipes() {
   const [search, setSearch] = useState('');
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterSite, setFilterSite] = useState('');
-  const [sort, setSort] = useState<SortOption>('newest');
+  const [sort, setSort] = useState<RecipeSort>('newest');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const { data: recipes, isLoading } = useRecipes({
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useRecipes({
     search: search || undefined,
     tags: filterTags.length ? filterTags : undefined,
     site: filterSite || undefined,
+    sort,
   });
   const { data: sites } = useRecipeSites();
-  const sortedRecipes = useMemo(() => recipes ? sortRecipes(recipes, sort) : recipes, [recipes, sort]);
+  const recipes = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const extraFilterCount = filterSite ? 1 : 0;
   const hasAnyFilter = Boolean(search) || filterTags.length > 0 || Boolean(filterSite);
@@ -66,8 +76,8 @@ export default function MyRecipes() {
           <TagInput value={filterTags} onChange={setFilterTags} placeholder="Filter by tag..." />
         </Box>
         <NativeSelect.Root size="md" w={{ base: 'full', md: '200px' }} flexShrink={0}>
-          <NativeSelect.Field value={sort} onChange={(e) => setSort(e.target.value as SortOption)}>
-            {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
+          <NativeSelect.Field value={sort} onChange={(e) => setSort(e.target.value as RecipeSort)}>
+            {(Object.keys(SORT_LABELS) as RecipeSort[]).map((opt) => (
               <option key={opt} value={opt}>{SORT_LABELS[opt]}</option>
             ))}
           </NativeSelect.Field>
@@ -80,11 +90,11 @@ export default function MyRecipes() {
       </Flex>
 
       {showMoreFilters && (
-        <Box borderWidth="1px" borderRadius="md" p={4} mb={6} bg="gray.50">
+        <Box borderWidth="1px" borderRadius="md" p={4} mb={6} bg="bg.subtle">
           <Flex gap={4} direction={{ base: 'column', md: 'row' }} align={{ md: 'flex-end' }}>
             <Field.Root w="full" maxW={{ md: '300px' }}>
               <Field.Label fontSize="sm">Site</Field.Label>
-              <NativeSelect.Root size="sm" bg="white">
+              <NativeSelect.Root size="sm" bg="bg.panel">
                 <NativeSelect.Field
                   value={filterSite}
                   onChange={(e) => setFilterSite(e.target.value)}
@@ -108,18 +118,29 @@ export default function MyRecipes() {
 
       {isLoading ? (
         <Box textAlign="center" py={12}><Spinner size="xl" /></Box>
-      ) : sortedRecipes && sortedRecipes.length > 0 ? (
-        <Grid
-          templateColumns={{ base: 'repeat(auto-fill, minmax(150px, 1fr))', md: 'repeat(auto-fill, minmax(240px, 1fr))' }}
-          gap={{ base: 3, md: 4 }}
-        >
-          {sortedRecipes.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} />
-          ))}
-        </Grid>
+      ) : recipes.length > 0 ? (
+        <>
+          <Grid
+            templateColumns={{ base: 'repeat(auto-fill, minmax(150px, 1fr))', md: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+            gap={{ base: 3, md: 4 }}
+          >
+            {recipes.map((recipe) => (
+              <RecipeCard key={recipe.id} recipe={recipe} />
+            ))}
+          </Grid>
+          <Box ref={sentinelRef} h="1px" />
+          {isFetchingNextPage && (
+            <Box textAlign="center" py={6}><Spinner /></Box>
+          )}
+          {!hasNextPage && !isFetchingNextPage && recipes.length > 0 && (
+            <Text color="fg.subtle" fontSize="sm" textAlign="center" py={6}>
+              That's all your recipes.
+            </Text>
+          )}
+        </>
       ) : (
         <Box textAlign="center" py={12}>
-          <Text color="gray.500">
+          <Text color="fg.muted">
             {hasAnyFilter ? 'No recipes match your search.' : 'No recipes yet. Add your first recipe!'}
           </Text>
           {!hasAnyFilter && (

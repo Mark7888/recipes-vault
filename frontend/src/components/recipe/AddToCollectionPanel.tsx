@@ -33,8 +33,8 @@ export function AddToCollectionPanel({ recipeId }: Props) {
         </Collapsible.Trigger>
 
         <Collapsible.Content position="absolute" top="calc(100% + 8px)" left={0} zIndex={10} w="full" maxW="480px">
-          <Box bg="white" shadow="lg" borderWidth="1px" borderRadius="lg" overflow="hidden">
-            <Box px={3} py={2} borderBottomWidth="1px" bg="gray.50">
+          <Box bg="bg.panel" shadow="lg" borderWidth="1px" borderRadius="lg" overflow="hidden">
+            <Box px={3} py={2} borderBottomWidth="1px" bg="bg.subtle">
               <Input
                 size="sm"
                 placeholder="Search collections…"
@@ -46,7 +46,7 @@ export function AddToCollectionPanel({ recipeId }: Props) {
 
             {filtered.length === 0 ? (
               <Box px={4} py={3}>
-                <Text fontSize="sm" color="gray.500">No collections found.</Text>
+                <Text fontSize="sm" color="fg.muted">No collections found.</Text>
               </Box>
             ) : (
               <VStack gap={0} align="stretch">
@@ -63,16 +63,16 @@ export function AddToCollectionPanel({ recipeId }: Props) {
                       py={3}
                       justify="space-between"
                       borderTopWidth={i > 0 ? '1px' : 0}
-                      bg={inCollection ? 'green.50' : 'white'}
+                      bg={inCollection ? 'green.subtle' : 'bg.panel'}
                     >
                       <VStack align="start" gap={0}>
                         <Text fontSize="sm" fontWeight="medium">{col.name}</Text>
-                        <Text fontSize="xs" color="gray.400">
+                        <Text fontSize="xs" color="fg.subtle">
                           {col._count?.recipes ?? 0} recipes · {col.members.length} members
                         </Text>
                       </VStack>
                       {inCollection && !canRemove ? (
-                        <Text fontSize="xs" color="gray.400">Added by others</Text>
+                        <Text fontSize="xs" color="fg.subtle">Added by others</Text>
                       ) : (
                         <Button
                           size="xs"

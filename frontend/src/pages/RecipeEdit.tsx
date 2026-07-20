@@ -138,15 +138,15 @@ export default function RecipeEdit() {
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (!recipe) {
     return (
-      <Box p={4} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-        <Text color="red.600">Recipe not found.</Text>
+      <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+        <Text color="fg.error">Recipe not found.</Text>
       </Box>
     );
   }
   if (recipe.ownerId !== user?.id) {
     return (
-      <Box p={4} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-        <Text color="red.600">You don't have permission to edit this recipe.</Text>
+      <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+        <Text color="fg.error">You don't have permission to edit this recipe.</Text>
       </Box>
     );
   }
@@ -238,8 +238,8 @@ export default function RecipeEdit() {
         />
 
         {saveErrorMessage && (
-          <Box w="full" p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-            <Text color="red.600" fontSize="sm">{saveErrorMessage}</Text>
+          <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+            <Text color="fg.error" fontSize="sm">{saveErrorMessage}</Text>
           </Box>
         )}
 

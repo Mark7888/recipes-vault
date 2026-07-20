@@ -13,12 +13,12 @@ function StatusBox({ message, variant }: { message: string; variant: 'error' | '
     <Box
       w="full"
       p={3}
-      bg={isError ? 'red.50' : 'green.50'}
+      bg={isError ? 'bg.error' : 'bg.success'}
       borderRadius="md"
       borderWidth="1px"
-      borderColor={isError ? 'red.200' : 'green.200'}
+      borderColor={isError ? 'border.error' : 'border.success'}
     >
-      <Text color={isError ? 'red.600' : 'green.700'} fontSize="sm">{message}</Text>
+      <Text color={isError ? 'fg.error' : 'fg.success'} fontSize="sm">{message}</Text>
     </Box>
   );
 }
@@ -56,11 +56,11 @@ export default function ResetPassword() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50" display="flex" alignItems="center" justifyContent="center">
+    <Box minH="100vh" bg="bg.subtle" display="flex" alignItems="center" justifyContent="center">
       <Container maxW="sm">
-        <Box bg="white" p={8} borderRadius="xl" shadow="md">
+        <Box bg="bg.panel" p={8} borderRadius="xl" shadow="md">
           <VStack gap={6}>
-            <Heading size="lg" color="green.700">Reset Password</Heading>
+            <Heading size="lg" color="green.fg">Reset Password</Heading>
             {success ? (
               <StatusBox message="Password reset! Redirecting to login..." variant="success" />
             ) : !token ? (

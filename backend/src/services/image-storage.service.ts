@@ -28,8 +28,27 @@ export async function deleteImageFile(filePath: string): Promise<void> {
   await fs.unlink(fullPath).catch(() => {});
 }
 
+export async function copyImageFile(filePath: string): Promise<string> {
+  const ext = path.extname(filePath);
+  const newFilename = `${randomUUID()}${ext}`;
+  await fs.copyFile(path.join(env.IMAGES_DIR, filePath), path.join(env.IMAGES_DIR, newFilename));
+  return newFilename;
+}
+
 export async function saveImageRecord(recipeId: string, filePath: string, isCover: boolean = false) {
-  return prisma.image.create({ data: { recipeId, filePath, isCover } });
+  const count = await prisma.image.count({ where: { recipeId } });
+  return prisma.image.create({ data: { recipeId, filePath, isCover, order: count } });
+}
+
+export async function reorderImages(recipeId: string, imageIds: string[]) {
+  const images = await prisma.image.findMany({ where: { recipeId }, select: { id: true } });
+  const existingIds = new Set(images.map((i) => i.id));
+  if (imageIds.length !== existingIds.size || !imageIds.every((id) => existingIds.has(id))) {
+    throw new Error('imageIds must match the recipe\'s current image set');
+  }
+  await prisma.$transaction(
+    imageIds.map((id, order) => prisma.image.update({ where: { id }, data: { order } }))
+  );
 }
 
 export async function downloadAndSaveImage(imageUrl: string, recipeId: string): Promise<string | null> {

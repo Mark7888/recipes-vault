@@ -24,6 +24,8 @@ model User {
   usedInvite      InviteLink? @relation("InviteUsedBy")
   shoppingItems   ShoppingListItem[]
   shoppingHistory ShoppingHistoryEntry[]
+  sentTransfers     OwnershipTransfer[] @relation("TransferFrom")
+  receivedTransfers OwnershipTransfer[] @relation("TransferTo")
 
   @@index([status])
 }
@@ -64,11 +66,26 @@ model Tag {
 }
 
 model Collection {
-  id          String   @id @default(uuid())
-  name        String
-  members     CollectionMembership[]
-  recipes     RecipeCollection[]
-  createdAt   DateTime @default(now())
+  id              String              @id @default(uuid())
+  name            String
+  members         CollectionMembership[]
+  recipes         RecipeCollection[]
+  pendingTransfer OwnershipTransfer?
+  createdAt       DateTime            @default(now())
+}
+
+// At most one pending transfer per collection (collectionId is unique).
+// Accepting swaps roles (fromUser -> EDITOR, toUser -> OWNER) and deletes
+// this row; rejecting or cancelling just deletes it.
+model OwnershipTransfer {
+  id           String     @id @default(uuid())
+  collectionId String     @unique
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  fromUserId   String
+  fromUser     User       @relation("TransferFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId     String
+  toUser       User       @relation("TransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
 }
 
 model CollectionMembership {
@@ -100,7 +117,10 @@ model Image {
   recipe        Recipe   @relation("RecipeImages", fields: [recipeId], references: [id], onDelete: Cascade)
   filePath      String
   isCover       Boolean  @default(false)
+  order         Int      @default(0)
   coverOfRecipe Recipe?  @relation("CoverImage")
+
+  @@index([recipeId, order])
 }
 
 model ShoppingListItem {

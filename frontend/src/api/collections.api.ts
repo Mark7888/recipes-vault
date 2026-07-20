@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Collection, Role, User } from '../types';
+import type { Collection, IncomingTransfer, Role, User } from '../types';
 
 export const collectionsApi = {
   list: () =>
@@ -34,4 +34,19 @@ export const collectionsApi = {
 
   searchUsers: (q: string) =>
     apiClient.get<Pick<User, 'id' | 'username'>[]>(`/users/search`, { params: { q } }).then(r => r.data),
+
+  listIncomingTransfers: () =>
+    apiClient.get<IncomingTransfer[]>('/collections/transfers/incoming').then(r => r.data),
+
+  transferOwnership: (id: string, toUserId: string) =>
+    apiClient.post(`/collections/${id}/transfer`, { toUserId }).then(r => r.data),
+
+  cancelTransfer: (id: string) =>
+    apiClient.post(`/collections/${id}/transfer/cancel`),
+
+  acceptTransfer: (id: string) =>
+    apiClient.post(`/collections/${id}/transfer/accept`),
+
+  rejectTransfer: (id: string) =>
+    apiClient.post(`/collections/${id}/transfer/reject`),
 };

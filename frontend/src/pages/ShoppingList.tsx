@@ -256,7 +256,7 @@ function ListTab() {
           {todo.length > 0 && (
             <HStack gap={2}>
               <Checkbox checked={allSelected} onToggle={toggleSelectAll} size={16} />
-              <Text fontSize="sm" color="gray.500">Select all</Text>
+              <Text fontSize="sm" color="fg.muted">Select all</Text>
             </HStack>
           )}
           <HStack gap={1}>
@@ -302,12 +302,12 @@ function ListTab() {
       />
 
       {todo.length === 0 ? (
-        <Text color="gray.500">Nothing to buy. Add items above or from a recipe page.</Text>
+        <Text color="fg.muted">Nothing to buy. Add items above or from a recipe page.</Text>
       ) : grouped ? (
         <VStack align="start" gap={4} w="full">
           {groupedTodo.map(([title, groupItems]) => (
             <Box key={title} w="full">
-              <Heading size="sm" mb={2} color={title === MANUAL_LABEL ? 'gray.600' : 'green.700'}>
+              <Heading size="sm" mb={2} color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
                 {title}
               </Heading>
               <VStack align="start" gap={0} w="full">
@@ -334,11 +334,11 @@ function ListTab() {
 
       {done.length > 0 && (
         <Box w="full" borderTopWidth="1px" pt={4}>
-          <Heading size="sm" mb={2} color="gray.600">Done</Heading>
+          <Heading size="sm" mb={2} color="fg.muted">Done</Heading>
           <VStack align="start" gap={1} w="full">
             {mergedDone.map((line) => (
               <HStack key={line.key} w="full" gap={3}>
-                <Text flex={1} textDecoration="line-through" color="gray.400">
+                <Text flex={1} textDecoration="line-through" color="fg.subtle">
                   {itemLabel(line.name, line.amount, line.unit)}
                 </Text>
                 <Button
@@ -380,7 +380,7 @@ function HistoryCard({ entry, onReadded }: { entry: ShoppingHistoryEntry; onRead
   };
 
   return (
-    <Box w="full" p={4} borderWidth="1px" borderRadius="md" bg="white" shadow="sm">
+    <Box w="full" p={4} borderWidth="1px" borderRadius="md" bg="bg.panel" shadow="sm">
       <Flex justify="space-between" align="center" mb={3} gap={2} flexWrap="wrap">
         <Text fontWeight="semibold">
           {formatDate(entry.createdAt)}
@@ -397,11 +397,11 @@ function HistoryCard({ entry, onReadded }: { entry: ShoppingHistoryEntry; onRead
       <VStack align="start" gap={2}>
         {groups.map(([title, groupItems]) => (
           <Box key={title}>
-            <Text fontSize="xs" fontWeight="semibold" color={title === MANUAL_LABEL ? 'gray.500' : 'green.700'}>
+            <Text fontSize="xs" fontWeight="semibold" color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
               {title}
             </Text>
             {groupItems.map((item, i) => (
-              <Text key={i} fontSize="sm" color="gray.700">
+              <Text key={i} fontSize="sm" color="fg.muted">
                 {itemLabel(item.name, item.amount, item.unit)}
               </Text>
             ))}
@@ -425,7 +425,7 @@ function HistoryTab({ onReadded }: { onReadded: () => void }) {
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="lg" /></Box>;
   if (!entries || entries.length === 0) {
-    return <Text color="gray.500">No past shoppings yet. Finish a shopping with the Clear button to create one.</Text>;
+    return <Text color="fg.muted">No past shoppings yet. Finish a shopping with the Clear button to create one.</Text>;
   }
 
   return (

@@ -3,10 +3,13 @@ import {
   Badge, Box, Button, Flex, Grid, Heading, HStack, Input, Spinner, Text, VStack,
 } from '@chakra-ui/react';
 import { useParams, Link } from 'react-router-dom';
-import { useCollection, useRemoveRecipeFromCollection } from '../hooks/useCollections';
+import {
+  useCollection, useRemoveRecipeFromCollection, useAcceptTransfer, useRejectTransfer,
+} from '../hooks/useCollections';
 import { useAuthStore } from '../store/authStore';
 import { RecipeCard } from '../components/recipe/RecipeCard';
 import { ShareCollectionPanel } from '../components/collection/ShareCollectionPanel';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const ADDERS_VISIBLE_LIMIT = 8;
 
@@ -15,9 +18,12 @@ export default function CollectionView() {
   const { data: collection, isLoading } = useCollection(id!);
   const { user } = useAuthStore();
   const removeRecipe = useRemoveRecipeFromCollection();
+  const acceptTransfer = useAcceptTransfer();
+  const rejectTransfer = useRejectTransfer();
   const [search, setSearch] = useState('');
   const [adderFilter, setAdderFilter] = useState<string | null>(null);
   const [showAllAdders, setShowAllAdders] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
 
   const adders = useMemo(() => {
     const map = new Map<string, string>();
@@ -30,14 +36,20 @@ export default function CollectionView() {
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (!collection) {
     return (
-      <Box p={4} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
-        <Text color="red.600">Collection not found.</Text>
+      <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
+        <Text color="fg.error">Collection not found.</Text>
       </Box>
     );
   }
 
   const myMembership = collection.members.find((m) => m.userId === user?.id);
   const isOwner = myMembership?.role === 'OWNER';
+  const incomingTransfer = collection.pendingTransfer?.toUser.id === user?.id ? collection.pendingTransfer : undefined;
+
+  const handleReject = async () => {
+    await rejectTransfer.mutateAsync(id!);
+    setConfirmReject(false);
+  };
 
   const filteredRecipes = (collection.recipes ?? []).filter((rc) => {
     const matchesSearch = !search || rc.recipe?.title.toLowerCase().includes(search.toLowerCase());
@@ -49,8 +61,13 @@ export default function CollectionView() {
     <Box py={4}>
       <Flex justify="space-between" mb={6} align="start" direction={{ base: 'column', sm: 'row' }} gap={3}>
         <VStack align="start" gap={1}>
-          <Heading size="lg">{collection.name}</Heading>
-          <Text fontSize="sm" color="gray.500">{collection.members.length} members</Text>
+          <HStack gap={2}>
+            <Heading size="lg">{collection.name}</Heading>
+            {collection.pendingTransfer && (
+              <Badge colorPalette="orange" size="sm">Transfer pending</Badge>
+            )}
+          </HStack>
+          <Text fontSize="sm" color="fg.muted">{collection.members.length} members</Text>
         </VStack>
         <HStack gap={2} align="start" flexWrap="wrap">
           {isOwner && (
@@ -68,6 +85,52 @@ export default function CollectionView() {
         </HStack>
       </Flex>
 
+      {incomingTransfer && (
+        <HStack
+          w="full"
+          justify="space-between"
+          p={3}
+          mb={6}
+          bg="bg.warning"
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor="border.warning"
+          flexWrap="wrap"
+          gap={2}
+        >
+          <Text color="fg.warning" fontSize="sm">
+            {incomingTransfer.fromUser.username} wants to transfer ownership of this collection to you.
+          </Text>
+          <HStack gap={2} flexShrink={0}>
+            <Button
+              size="xs"
+              colorPalette="green"
+              loading={acceptTransfer.isPending}
+              onClick={() => acceptTransfer.mutate(id!)}
+            >
+              Accept
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              colorPalette="red"
+              onClick={() => setConfirmReject(true)}
+            >
+              Reject
+            </Button>
+          </HStack>
+        </HStack>
+      )}
+      <ConfirmDialog
+        open={confirmReject}
+        title="Reject transfer?"
+        message={`You'll decline ownership of "${collection.name}". ${incomingTransfer?.fromUser.username ?? 'The current owner'} will remain the Owner.`}
+        confirmLabel="Reject"
+        loading={rejectTransfer.isPending}
+        onConfirm={handleReject}
+        onCancel={() => setConfirmReject(false)}
+      />
+
       {/* Search + adder filter */}
       <VStack align="start" gap={3} mb={6}>
         <Input
@@ -79,7 +142,7 @@ export default function CollectionView() {
         />
         {adders.length > 1 && (
           <HStack gap={2} flexWrap="wrap">
-            <Text fontSize="sm" color="gray.500">Added by:</Text>
+            <Text fontSize="sm" color="fg.muted">Added by:</Text>
             <Badge
               cursor="pointer"
               colorPalette={adderFilter === null ? 'green' : 'gray'}
@@ -129,7 +192,7 @@ export default function CollectionView() {
         </Grid>
       ) : (
         <Box textAlign="center" py={12}>
-          <Text color="gray.500">
+          <Text color="fg.muted">
             {search || adderFilter ? 'No recipes match your filters.' : 'No recipes in this collection yet.'}
           </Text>
         </Box>

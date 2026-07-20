@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
+import type { Prisma } from '@prisma/client';
 import type { Ingredient, Instruction } from '../types/index.js';
+import { copyImageFile } from './image-storage.service.js';
 
 interface RecipeInput {
   title: string;
@@ -22,14 +24,60 @@ export async function createRecipe(ownerId: string, data: RecipeInput) {
       ingredients: data.ingredients as object[],
       instructions: data.instructions as object[],
     },
-    include: { tags: true, images: true, coverImage: true },
+    include: { tags: true, images: { orderBy: { order: 'asc' } }, coverImage: true },
+  });
+}
+
+export async function duplicateRecipe(sourceId: string, ownerId: string) {
+  const source = await prisma.recipe.findUnique({
+    where: { id: sourceId },
+    include: { tags: true, images: { orderBy: { order: 'asc' } } },
+  });
+  if (!source) throw new Error('Recipe not found');
+
+  const copiedFiles = await Promise.all(
+    source.images.map(async (img) => ({ original: img, filePath: await copyImageFile(img.filePath) }))
+  );
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.recipe.create({
+      data: {
+        title: `${source.title} (copy)`,
+        sourceUrl: source.sourceUrl,
+        isFallback: source.isFallback,
+        ingredients: source.ingredients as object[],
+        instructions: source.instructions as object[],
+        prepTime: source.prepTime,
+        cookTime: source.cookTime,
+        servings: source.servings,
+        notes: source.notes,
+        ownerId,
+        tags: { connect: source.tags.map((t) => ({ id: t.id })) },
+      },
+    });
+
+    const newImages = await Promise.all(
+      copiedFiles.map(({ original, filePath }) =>
+        tx.image.create({ data: { recipeId: created.id, filePath, isCover: original.isCover, order: original.order } })
+      )
+    );
+
+    const coverIndex = source.images.findIndex((img) => img.id === source.coverImageId);
+    if (coverIndex !== -1) {
+      await tx.recipe.update({ where: { id: created.id }, data: { coverImageId: newImages[coverIndex].id } });
+    }
+
+    return tx.recipe.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { tags: true, images: { orderBy: { order: 'asc' } }, coverImage: true },
+    });
   });
 }
 
 export async function getRecipeById(id: string) {
   return prisma.recipe.findUnique({
     where: { id },
-    include: { tags: true, images: true, coverImage: true, owner: { select: { id: true, username: true } } },
+    include: { tags: true, images: { orderBy: { order: 'asc' } }, coverImage: true, owner: { select: { id: true, username: true } } },
   });
 }
 
@@ -42,19 +90,46 @@ export function extractSiteDomain(url: string | null | undefined): string | null
   }
 }
 
-export async function getRecipesForUser(ownerId: string, search?: string, tags?: string[], site?: string) {
-  const recipes = await prisma.recipe.findMany({
-    where: {
-      ownerId,
-      ...(search && { title: { contains: search, mode: 'insensitive' } }),
-      ...(tags && tags.length > 0 && { tags: { some: { name: { in: tags } } } }),
-      ...(site && { sourceUrl: { contains: site } }),
-    },
-    include: { tags: true, coverImage: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (!site) return recipes;
-  return recipes.filter(r => extractSiteDomain(r.sourceUrl) === site);
+export type RecipeSort = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'prep-time';
+
+const SORT_ORDER_BY: Record<RecipeSort, Prisma.RecipeOrderByWithRelationInput> = {
+  newest: { createdAt: 'desc' },
+  oldest: { createdAt: 'asc' },
+  'title-asc': { title: 'asc' },
+  'title-desc': { title: 'desc' },
+  'prep-time': { prepTime: 'asc' },
+};
+
+interface GetRecipesParams {
+  search?: string;
+  tags?: string[];
+  site?: string;
+  sort?: RecipeSort;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getRecipesForUser(ownerId: string, params: GetRecipesParams = {}) {
+  const { search, tags, site, sort = 'newest', limit = 24, offset = 0 } = params;
+  const where = {
+    ownerId,
+    ...(search && { title: { contains: search, mode: 'insensitive' as const } }),
+    ...(tags && tags.length > 0 && { tags: { some: { name: { in: tags } } } }),
+    // sourceUrl hostnames are normalized (www. stripped) before being offered
+    // as filter options, so match either form at the DB level.
+    ...(site && { OR: [{ sourceUrl: { contains: `://${site}` } }, { sourceUrl: { contains: `://www.${site}` } }] }),
+  };
+  const [items, total] = await Promise.all([
+    prisma.recipe.findMany({
+      where,
+      include: { tags: true, coverImage: true },
+      orderBy: SORT_ORDER_BY[sort],
+      skip: offset,
+      take: limit,
+    }),
+    prisma.recipe.count({ where }),
+  ]);
+  return { items, total, hasMore: offset + items.length < total };
 }
 
 export async function getRecipeSitesForUser(ownerId: string): Promise<string[]> {
@@ -78,7 +153,7 @@ export async function updateRecipe(id: string, data: Partial<RecipeInput>) {
       ...(data.ingredients && { ingredients: data.ingredients as object[] }),
       ...(data.instructions && { instructions: data.instructions as object[] }),
     },
-    include: { tags: true, images: true, coverImage: true },
+    include: { tags: true, images: { orderBy: { order: 'asc' } }, coverImage: true },
   });
 }
 
@@ -105,7 +180,7 @@ export async function getOrCreateShareToken(recipeId: string): Promise<string> {
 export async function getRecipeByShareToken(token: string) {
   return prisma.recipe.findUnique({
     where: { shareToken: token },
-    include: { tags: true, images: true, coverImage: true, owner: { select: { id: true, username: true } } },
+    include: { tags: true, images: { orderBy: { order: 'asc' } }, coverImage: true, owner: { select: { id: true, username: true } } },
   });
 }
 

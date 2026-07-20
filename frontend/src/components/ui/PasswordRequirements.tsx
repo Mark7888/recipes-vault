@@ -8,7 +8,7 @@ export function PasswordRequirements({ password }: { password: string }) {
       {PASSWORD_RULES.map((rule) => {
         const met = rule.test(password);
         return (
-          <HStack key={rule.label} gap={1.5} color={met ? 'green.600' : 'gray.400'}>
+          <HStack key={rule.label} gap={1.5} color={met ? 'fg.success' : 'fg.subtle'}>
             {met ? <CheckIcon size={14} /> : <CloseIcon size={14} />}
             <Text fontSize="xs">{rule.label}</Text>
           </HStack>
