@@ -6,6 +6,13 @@ const config = defineConfig({
       bg: 'bg',
       color: 'fg',
     },
+    // Tell the browser which palette to paint its own UI with — scrollbars,
+    // autofill backgrounds, native pickers and spin buttons. Without this they
+    // stay light (white) while the rest of the app is dark. Written as plain
+    // selectors because Chakra's `_dark` condition is a descendant selector
+    // (`.dark &`) and never matches the <html> element that carries the class.
+    ':root': { colorScheme: 'light' },
+    ':root.dark': { colorScheme: 'dark' },
   },
   theme: {
     tokens: {

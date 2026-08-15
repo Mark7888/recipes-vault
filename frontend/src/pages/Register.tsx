@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Heading, Input, VStack, Text, Container, Spinner } from '@chakra-ui/react';
+import { Box, Button, Heading, Input, VStack, Text, Container, Spinner, Link as ChakraLink } from '@chakra-ui/react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
@@ -117,7 +117,9 @@ export default function Register() {
             )}
             <Text fontSize="sm" color="fg.muted">
               Already have an account?{' '}
-              <Link to="/login" style={{ color: '#16a34a', fontWeight: 600 }}>Sign in</Link>
+              <ChakraLink asChild color="green.fg" fontWeight="semibold">
+                <Link to="/login">Sign in</Link>
+              </ChakraLink>
             </Text>
           </VStack>
         </Box>
