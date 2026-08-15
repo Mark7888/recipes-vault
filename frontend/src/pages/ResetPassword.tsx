@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Heading, VStack, Text, Container } from '@chakra-ui/react';
+import { Box, Button, Heading, VStack, Text, Container, Link as ChakraLink } from '@chakra-ui/react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { PasswordInput } from '../components/ui/PasswordInput';
@@ -93,9 +93,9 @@ export default function ResetPassword() {
                 </VStack>
               </form>
             )}
-            <Link to="/login" style={{ fontSize: '14px', color: '#16a34a' }}>
-              Back to login
-            </Link>
+            <ChakraLink asChild fontSize="sm" color="green.fg">
+              <Link to="/login">Back to login</Link>
+            </ChakraLink>
           </VStack>
         </Box>
       </Container>

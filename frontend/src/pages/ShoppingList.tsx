@@ -52,6 +52,27 @@ function itemLabel(name: string, amount: string, unit: string) {
   return [amount, unit, name].filter(Boolean).join(' ');
 }
 
+/**
+ * Recipe titles are arbitrarily long and a Badge never wraps, so on a phone an
+ * untruncated one pushes the row past the viewport and the whole page starts
+ * scrolling sideways. Cap the width and ellipsise; the full title stays
+ * available as a tooltip.
+ */
+function SourceBadge({ label, isManual }: { label: string; isManual: boolean }) {
+  return (
+    <Badge
+      colorPalette={isManual ? 'gray' : 'green'}
+      fontSize="10px"
+      title={label}
+      minW={0}
+      maxW={{ base: '110px', sm: '220px' }}
+      overflow="hidden"
+    >
+      <Box as="span" truncate>{label}</Box>
+    </Badge>
+  );
+}
+
 function ItemEditor({ item, onDone }: { item: ShoppingListItem; onDone: () => void }) {
   const updateItem = useUpdateShoppingItem();
   const [name, setName] = useState(item.name);
@@ -65,9 +86,9 @@ function ItemEditor({ item, onDone }: { item: ShoppingListItem; onDone: () => vo
   };
 
   return (
-    <HStack gap={2} flex={1} flexWrap="wrap">
-      <Input size="sm" w="70px" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      <Input size="sm" w="70px" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+    <HStack gap={2} flex={1} minW={0} flexWrap="wrap">
+      <Input size="sm" w="70px" flexShrink={0} placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <Input size="sm" w="70px" flexShrink={0} placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
       <Input size="sm" flex={1} minW="120px" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
       <Button size="xs" colorPalette="green" loading={updateItem.isPending} onClick={save}>Save</Button>
       <Button size="xs" variant="ghost" onClick={onDone}>Cancel</Button>
@@ -87,23 +108,24 @@ function TodoRow({
   const [editing, setEditing] = useState(false);
 
   return (
-    <HStack w="full" gap={3} py={1}>
+    <HStack w="full" minW={0} gap={3} py={1}>
       <Checkbox checked={selected} onToggle={onToggleSelect} />
       {editing ? (
         <ItemEditor item={item} onDone={() => setEditing(false)} />
       ) : (
         <>
-          <Text flex={1}>{itemLabel(item.name, item.amount, item.unit)}</Text>
-          {showSource && (
-            <Badge colorPalette={item.recipeTitle ? 'green' : 'gray'} fontSize="10px">
-              {item.recipeTitle ?? MANUAL_LABEL}
-            </Badge>
-          )}
-          <Button size="xs" variant="ghost" onClick={() => setEditing(true)}><EditIcon size={14} /></Button>
+          <Flex flex={1} minW={0} align="center" gap={2} flexWrap="wrap">
+            <Text minW={0} wordBreak="break-word">{itemLabel(item.name, item.amount, item.unit)}</Text>
+            {showSource && (
+              <SourceBadge label={item.recipeTitle ?? MANUAL_LABEL} isManual={!item.recipeTitle} />
+            )}
+          </Flex>
+          <Button size="xs" variant="ghost" flexShrink={0} onClick={() => setEditing(true)}><EditIcon size={14} /></Button>
           <Button
             size="xs"
             variant="ghost"
             colorPalette="red"
+            flexShrink={0}
             loading={deleteItem.isPending}
             onClick={() => deleteItem.mutate(item.id)}
           >
@@ -129,21 +151,24 @@ function MergedRow({
   const single = line.items.length === 1;
 
   return (
-    <HStack w="full" gap={3} py={1}>
+    <HStack w="full" minW={0} gap={3} py={1}>
       <Checkbox checked={selected} onToggle={() => onToggleSelect(ids)} />
       {editing && single ? (
         <ItemEditor item={line.items[0]} onDone={() => setEditing(false)} />
       ) : (
         <>
-          <Text flex={1}>{itemLabel(line.name, line.amount, line.unit)}</Text>
-          {line.sources.map((s) => (
-            <Badge key={s} colorPalette={s === MANUAL_LABEL ? 'gray' : 'green'} fontSize="10px">{s}</Badge>
-          ))}
-          {single && <Button size="xs" variant="ghost" onClick={() => setEditing(true)}><EditIcon size={14} /></Button>}
+          <Flex flex={1} minW={0} align="center" gap={2} flexWrap="wrap">
+            <Text minW={0} wordBreak="break-word">{itemLabel(line.name, line.amount, line.unit)}</Text>
+            {line.sources.map((s) => (
+              <SourceBadge key={s} label={s} isManual={s === MANUAL_LABEL} />
+            ))}
+          </Flex>
+          {single && <Button size="xs" variant="ghost" flexShrink={0} onClick={() => setEditing(true)}><EditIcon size={14} /></Button>}
           <Button
             size="xs"
             variant="ghost"
             colorPalette="red"
+            flexShrink={0}
             loading={deleteItem.isPending}
             onClick={() => ids.forEach(id => deleteItem.mutate(id))}
           >
@@ -306,8 +331,8 @@ function ListTab() {
       ) : grouped ? (
         <VStack align="start" gap={4} w="full">
           {groupedTodo.map(([title, groupItems]) => (
-            <Box key={title} w="full">
-              <Heading size="sm" mb={2} color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
+            <Box key={title} w="full" minW={0}>
+              <Heading size="sm" mb={2} wordBreak="break-word" color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
                 {title}
               </Heading>
               <VStack align="start" gap={0} w="full">
@@ -337,13 +362,14 @@ function ListTab() {
           <Heading size="sm" mb={2} color="fg.muted">Done</Heading>
           <VStack align="start" gap={1} w="full">
             {mergedDone.map((line) => (
-              <HStack key={line.key} w="full" gap={3}>
-                <Text flex={1} textDecoration="line-through" color="fg.subtle">
+              <HStack key={line.key} w="full" minW={0} gap={3}>
+                <Text flex={1} minW={0} wordBreak="break-word" textDecoration="line-through" color="fg.subtle">
                   {itemLabel(line.name, line.amount, line.unit)}
                 </Text>
                 <Button
                   size="xs"
                   variant="ghost"
+                  flexShrink={0}
                   loading={setBought.isPending}
                   onClick={() => setBought.mutate({ ids: line.items.map(i => i.id), bought: false })}
                 >
@@ -394,14 +420,14 @@ function HistoryCard({ entry, onReadded }: { entry: ShoppingHistoryEntry; onRead
           </Button>
         </HStack>
       </Flex>
-      <VStack align="start" gap={2}>
+      <VStack align="start" gap={2} w="full">
         {groups.map(([title, groupItems]) => (
-          <Box key={title}>
-            <Text fontSize="xs" fontWeight="semibold" color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
+          <Box key={title} w="full" minW={0}>
+            <Text fontSize="xs" fontWeight="semibold" wordBreak="break-word" color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
               {title}
             </Text>
             {groupItems.map((item, i) => (
-              <Text key={i} fontSize="sm" color="fg.muted">
+              <Text key={i} fontSize="sm" color="fg.muted" wordBreak="break-word">
                 {itemLabel(item.name, item.amount, item.unit)}
               </Text>
             ))}

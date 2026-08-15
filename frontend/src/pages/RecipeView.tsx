@@ -106,7 +106,8 @@ export default function RecipeView() {
             )}
           </VStack>
           {isOwner && (
-            <HStack gap={2}>
+            // wraps so the four actions never push the page wider than a phone
+            <HStack gap={2} flexWrap="wrap">
               <Button size="sm" colorPalette="blue" variant="outline" onClick={handleShare}>
                 <ShareIcon size={14} /> Share
               </Button>
@@ -132,17 +133,19 @@ export default function RecipeView() {
         </Flex>
 
         {shareUrl && (
-          <Box w="full" p={3} bg="blue.50" borderRadius="md" borderWidth="1px" borderColor="blue.200">
-            <Text fontSize="sm" mb={2}>Anyone with this link can view the recipe, no login needed:</Text>
+          <Box w="full" p={3} bg="blue.subtle" borderRadius="md" borderWidth="1px" borderColor="blue.muted">
+            <Text fontSize="sm" mb={2} color="blue.fg">Anyone with this link can view the recipe, no login needed:</Text>
             <HStack gap={2}>
               <Input
                 size="sm"
                 bg="bg.panel"
+                color="fg"
+                minW={0}
                 readOnly
                 value={shareUrl}
                 onFocus={(e) => e.currentTarget.select()}
               />
-              <Button size="sm" colorPalette="blue" onClick={() => void copyShareUrl(shareUrl)}>
+              <Button size="sm" colorPalette="blue" flexShrink={0} onClick={() => void copyShareUrl(shareUrl)}>
                 {shareCopied ? 'Copied!' : 'Copy'}
               </Button>
             </HStack>
@@ -157,9 +160,9 @@ export default function RecipeView() {
           {recipe.servings && <Text>{recipe.servings} servings</Text>}
         </HStack>
 
-        <HStack flexWrap="wrap" gap={2}>
+        <HStack w="full" flexWrap="wrap" gap={2}>
           {recipe.tags.map((tag) => (
-            <Badge key={tag.id} colorPalette="green">{tag.name}</Badge>
+            <Badge key={tag.id} colorPalette="green" maxW="full" overflow="hidden" title={tag.name}><Box as="span" truncate>{tag.name}</Box></Badge>
           ))}
         </HStack>
 

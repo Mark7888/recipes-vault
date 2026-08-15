@@ -48,9 +48,9 @@ export default function SharedRecipe() {
           {recipe.servings && <Text>{recipe.servings} servings</Text>}
         </HStack>
 
-        <HStack flexWrap="wrap" gap={2}>
+        <HStack w="full" flexWrap="wrap" gap={2}>
           {recipe.tags.map((tag) => (
-            <Badge key={tag.id} colorPalette="green">{tag.name}</Badge>
+            <Badge key={tag.id} colorPalette="green" maxW="full" overflow="hidden" title={tag.name}><Box as="span" truncate>{tag.name}</Box></Badge>
           ))}
         </HStack>
 
