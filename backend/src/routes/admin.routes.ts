@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { adminLogin, createInvite, getInvites, revokeInvite, createPasswordReset, getPasswordResets, revokePasswordReset, listUsers, deleteUser } from '../controllers/admin.controller.js';
+import { adminLogin, createInvite, getInvites, revokeInvite, createPasswordReset, getPasswordResets, revokePasswordReset, listUsers, deleteUser, setUserAiAccess } from '../controllers/admin.controller.js';
 import { adminMiddleware } from '../middleware/admin.middleware.js';
 
 const router = Router();
@@ -7,6 +7,7 @@ router.post('/login', adminLogin);
 router.use(adminMiddleware);
 router.get('/users', listUsers);
 router.delete('/users/:id', deleteUser);
+router.patch('/users/:id/ai-access', setUserAiAccess);
 router.post('/invites', createInvite);
 router.get('/invites', getInvites);
 router.delete('/invites/:id', revokeInvite);

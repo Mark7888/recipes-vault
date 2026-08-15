@@ -5,6 +5,7 @@ A self-hosted, invite-only Progressive Web App for capturing and organizing reci
 ## What it does
 
 - **Capture recipes from any URL** — paste a link or prefix any recipe URL with your domain to automatically extract title, ingredients, steps, times, and images
+- **Chat your way to a recipe** — optional AI assistant that suggests recipes, talks through what's in your fridge, and reads recipe screenshots; one button turns the result into a ready-to-edit recipe (off by default, enabled per user by the admin)
 - **Edit after capture** — correct or refine what was extracted before saving
 - **Organize with tags** — tag recipes and filter by tag in your library
 - **Collections** — group recipes into named collections and share them with friends or family (Owner / Editor / Viewer roles)
@@ -18,6 +19,7 @@ A self-hosted, invite-only Progressive Web App for capturing and organizing reci
 | Frontend | React 19 + Chakra UI v3 + TanStack Query v5 |
 | Database | PostgreSQL 16 (via Prisma ORM) |
 | Auth | JWT (access token) + httpOnly refresh-token cookie |
+| AI (optional) | OpenRouter — any model, defaults to Gemini 3.1 Flash Lite |
 | Deployment | Docker Compose |
 
 ## Setup
@@ -89,6 +91,41 @@ Navigate to `https://yourdomain.com/www.seriouseats.com/some-recipe` and you'll 
 
 **Method B — Add Recipe page:**
 Click "Add Recipe" in the nav, paste any recipe URL, and click "Capture Recipe".
+
+**Method C — Chat with the AI assistant:**
+On the Add Recipe page pick "Chat with AI", describe what you feel like (or attach a
+screenshot of a recipe), and hit "Save as recipe" when you like what you see. You land
+in the editor with everything filled in except the cover image. Requires the setup below.
+
+## AI recipe assistant (optional)
+
+The assistant is off unless you configure it, and even then it stays off for every
+account until you turn it on per user.
+
+### 1. Configure the model
+
+Add to `.env`:
+
+| Variable | What it does |
+|----------|--------------|
+| `OPENROUTER_API_KEY` | Your key from https://openrouter.ai/keys. Empty = the feature does not exist; the option is hidden for everyone. |
+| `OPENROUTER_MODEL` | Any OpenRouter model slug. Defaults to `google/gemini-3.1-flash-lite`. Needs image input + structured output support. |
+| `OPENROUTER_BASE_URL` | Only if you proxy OpenRouter. Defaults to `https://openrouter.ai/api/v1`. |
+| `AI_MAX_OUTPUT_TOKENS` | Output budget per reply (default 2048). |
+| `AI_TIMEOUT_MS` | How long to wait for a reply (default 60000). |
+| `AI_RATE_LIMIT_PER_MINUTE` | Per-user request cap, protects your credits (default 20). |
+| `AI_APP_URL` / `AI_APP_NAME` | Reported to OpenRouter as `HTTP-Referer` / `X-Title`. |
+
+Swapping models is an env change plus `docker compose up -d` — no code change.
+
+### 2. Enable it for a user
+
+Log in to `/admin`, find the user under **Users**, and click **Enable AI**. The same
+button revokes it, and revoking takes effect on the user's very next request.
+
+Nothing about the AI endpoints is reachable without both a valid login *and* that flag,
+and conversations are never stored server-side — they live in the browser tab until you
+save a recipe or leave the page.
 
 ## Updating
 

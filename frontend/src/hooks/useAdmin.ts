@@ -73,6 +73,15 @@ export function useRevokeAdminPasswordReset(token: string) {
   });
 }
 
+export function useSetAdminUserAiAccess(token: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, enabled }: { userId: string; enabled: boolean }) =>
+      adminApi.setUserAiAccess(token, userId, enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.users(token) }),
+  });
+}
+
 export function useDeleteAdminUser(token: string) {
   const qc = useQueryClient();
   return useMutation({

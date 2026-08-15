@@ -13,6 +13,7 @@ import usersRoutes from './routes/users.routes.js';
 import sharedRoutes from './routes/shared.routes.js';
 import shoppingListRoutes from './routes/shopping-list.routes.js';
 import captureRoutes, { captureAndCreateRecipe } from './routes/capture.routes.js';
+import aiRoutes from './routes/ai.routes.js';
 import { verifyRefreshToken } from './services/auth.service.js';
 import { prisma } from './lib/prisma.js';
 import type { Request, Response, NextFunction } from 'express';
@@ -42,6 +43,7 @@ export function createApp() {
   app.use('/api/shared', sharedRoutes);
   app.use('/api/shopping-list', shoppingListRoutes);
   app.use('/api/capture', captureRoutes);
+  app.use('/api/ai', aiRoutes);
 
   // Serve frontend static assets before the capture catch-all: root-level
   // files like /favicon.ico or /manifest.webmanifest would otherwise match
