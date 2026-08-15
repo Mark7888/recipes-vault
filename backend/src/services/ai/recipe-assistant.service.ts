@@ -1,0 +1,237 @@
+import { z } from 'zod';
+import { logger } from '../../lib/logger.js';
+import { aiErrors } from './ai-errors.js';
+import { requestCompletion, type ChatMessage } from './openrouter.service.js';
+import type { Ingredient, Instruction } from '../../types/index.js';
+
+/**
+ * The recipe-specific layer on top of the provider client: the prompts, the
+ * structured-output schema, and the conversion into RecipeVault's own recipe
+ * shape (the same shape the site parsers produce).
+ */
+
+const CHAT_SYSTEM_PROMPT = `You are the recipe assistant inside RecipeVault, a personal recipe library.
+
+Your job is to help the user land on ONE recipe they want to keep. You can:
+- suggest recipes based on a craving, an occasion, a diet, or ingredients they have
+- adapt or scale a recipe, swap ingredients, and explain techniques
+- read recipe screenshots or photos the user attaches and work from them
+
+How to answer:
+- Be concise and conversational. Ask a short follow-up question when the request is vague.
+- When you present a recipe, always use this layout:
+  the recipe title on its own first line, then an "Ingredients:" list with one
+  item per line including amounts, then a "Steps:" list with numbered steps,
+  and finally prep time, cook time and servings when you know them.
+- Use plain text. Simple dashes and numbers are fine; do not use markdown tables or headings.
+- Never invent a source or claim a recipe comes from a specific website or cookbook.
+- If a screenshot is unreadable or is not a recipe, say so plainly instead of guessing.
+- Stay on food, cooking and recipes. Politely redirect anything else.
+
+When the user is happy with a recipe, they save it with the "Save as recipe" button
+below the chat — it turns the recipe you last described into an editable recipe in
+their library. Mention that button when a recipe looks settled, but only once.`;
+
+const EXTRACTION_SYSTEM_PROMPT = `You convert a cooking conversation into one structured recipe.
+
+Rules:
+- Use the most recent complete recipe in the conversation. If the user asked for
+  changes (scaling, substitutions, extra steps), apply them to the final version.
+- If the recipe came from an attached image, read the values off the image.
+- Split every ingredient into amount, unit and name:
+  "2 tbsp olive oil" -> amount "2", unit "tbsp", name "olive oil";
+  "3 eggs" -> amount "3", unit "", name "eggs";
+  "salt to taste" -> amount "", unit "", name "salt to taste".
+- Keep ingredient and step wording in the language the conversation used.
+- Steps are plain sentences without their own numbering prefix.
+- Times are whole minutes. Use null when a time or serving count was never stated —
+  never guess.
+- notes: anything useful that is not an ingredient or a step (tips, storage,
+  substitutions). Use null when there is nothing to add.
+- tags: 1-5 short lowercase keywords (cuisine, course, diet, main ingredient).
+- Never invent a recipe that was not discussed. If the conversation contains no
+  recipe at all, return a title of exactly "NO_RECIPE" and empty lists.`;
+
+/** OpenAI-style JSON-schema response format; OpenRouter passes it to the model. */
+const RECIPE_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'recipe',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['title', 'ingredients', 'steps', 'prepTimeMinutes', 'cookTimeMinutes', 'servings', 'notes', 'tags'],
+      properties: {
+        title: { type: 'string', description: 'Short recipe title, no quotes' },
+        ingredients: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['amount', 'unit', 'name'],
+            properties: {
+              amount: { type: 'string', description: 'Numeric quantity as text, or "" when there is none' },
+              unit: { type: 'string', description: 'Unit such as g, ml, tbsp, or "" when there is none' },
+              name: { type: 'string' },
+            },
+          },
+        },
+        steps: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Ordered preparation steps, each a plain sentence',
+        },
+        prepTimeMinutes: { type: ['integer', 'null'] },
+        cookTimeMinutes: { type: ['integer', 'null'] },
+        servings: { type: ['integer', 'null'] },
+        notes: { type: ['string', 'null'] },
+        tags: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  },
+} as const;
+
+// Deliberately lenient: a model that returns "4" for servings or drops an empty
+// `unit` should not cost the user their recipe.
+const nullableInt = z.union([z.number(), z.string(), z.null()]).optional();
+
+const extractionSchema = z.object({
+  title: z.string().optional(),
+  ingredients: z
+    .array(
+      z.object({
+        amount: z.union([z.string(), z.number()]).optional(),
+        unit: z.string().optional(),
+        name: z.string().optional(),
+      })
+    )
+    .optional(),
+  steps: z.array(z.union([z.string(), z.object({ text: z.string().optional() })])).optional(),
+  prepTimeMinutes: nullableInt,
+  cookTimeMinutes: nullableInt,
+  servings: nullableInt,
+  notes: z.union([z.string(), z.null()]).optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export interface ExtractedRecipe {
+  title: string;
+  ingredients: Ingredient[];
+  instructions: Instruction[];
+  prepTime?: number;
+  cookTime?: number;
+  servings?: number;
+  notes?: string;
+  tags: string[];
+}
+
+function toPositiveInt(value: unknown): number | undefined {
+  const num = typeof value === 'string' ? Number.parseInt(value, 10) : typeof value === 'number' ? value : NaN;
+  if (!Number.isFinite(num) || num <= 0) return undefined;
+  return Math.round(num);
+}
+
+/**
+ * Pulls the JSON object out of a reply. `response_format` should make this a
+ * plain object already, but models still occasionally wrap it in a code fence
+ * or add a sentence around it.
+ */
+function parseJsonObject(raw: string): unknown {
+  const withoutFence = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  try {
+    return JSON.parse(withoutFence);
+  } catch {
+    const start = withoutFence.indexOf('{');
+    const end = withoutFence.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(withoutFence.slice(start, end + 1));
+      } catch {
+        // fall through
+      }
+    }
+    return null;
+  }
+}
+
+/** One assistant turn in the chat. */
+export async function continueChat(messages: ChatMessage[]): Promise<{ content: string; truncated: boolean }> {
+  const result = await requestCompletion({
+    system: CHAT_SYSTEM_PROMPT,
+    messages,
+    temperature: 0.7,
+  });
+  logger.debug({ usage: result.usage }, 'AI chat turn completed');
+  return { content: result.content, truncated: result.truncated };
+}
+
+/** Turns the conversation into a structured recipe, ready to be created. */
+export async function extractRecipe(messages: ChatMessage[]): Promise<ExtractedRecipe> {
+  const result = await requestCompletion({
+    system: EXTRACTION_SYSTEM_PROMPT,
+    messages: [
+      ...messages,
+      {
+        role: 'user',
+        content:
+          'Convert the recipe we settled on into the structured recipe format. Return only the JSON object.',
+      },
+    ],
+    responseFormat: RECIPE_RESPONSE_FORMAT as unknown as Record<string, unknown>,
+    temperature: 0.2,
+  });
+
+  if (result.truncated) throw aiErrors.truncated();
+
+  const json = parseJsonObject(result.content);
+  if (json === null) {
+    logger.error({ preview: result.content.slice(0, 300) }, 'AI extraction returned unparseable JSON');
+    throw aiErrors.badResponse('response was not valid JSON');
+  }
+
+  const parsed = extractionSchema.safeParse(json);
+  if (!parsed.success) {
+    logger.error({ issues: parsed.error.issues }, 'AI extraction did not match the recipe schema');
+    throw aiErrors.badResponse('response did not match the recipe schema');
+  }
+
+  const data = parsed.data;
+  const title = (data.title ?? '').trim();
+
+  const ingredients: Ingredient[] = (data.ingredients ?? [])
+    .map((ing) => ({
+      amount: String(ing.amount ?? '').trim(),
+      unit: (ing.unit ?? '').trim(),
+      name: (ing.name ?? '').trim(),
+    }))
+    .filter((ing) => ing.name || ing.amount);
+
+  const instructions: Instruction[] = (data.steps ?? [])
+    .map((step) => (typeof step === 'string' ? step : (step.text ?? '')).trim())
+    .filter((text) => text.length > 0)
+    .map((text, index) => ({ step: index + 1, text }));
+
+  // The model was told to answer NO_RECIPE rather than invent one; an empty
+  // result means the same thing.
+  if (!title || title === 'NO_RECIPE' || (ingredients.length === 0 && instructions.length === 0)) {
+    throw aiErrors.noRecipe();
+  }
+
+  const notes = (data.notes ?? '').trim();
+  const tags = (data.tags ?? [])
+    .map((tag) => tag.toLowerCase().trim())
+    .filter((tag) => tag.length > 0 && tag.length <= 40)
+    .slice(0, 5);
+
+  return {
+    title: title.slice(0, 200),
+    ingredients,
+    instructions,
+    prepTime: toPositiveInt(data.prepTimeMinutes),
+    cookTime: toPositiveInt(data.cookTimeMinutes),
+    servings: toPositiveInt(data.servings),
+    notes: notes ? notes : undefined,
+    tags: [...new Set(tags)],
+  };
+}

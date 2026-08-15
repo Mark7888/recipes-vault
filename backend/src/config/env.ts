@@ -10,6 +10,23 @@ const envSchema = z.object({
   IMAGES_DIR: z.string().default('./data/images'),
   FETCH_TIMEOUT_MS: z.coerce.number().default(10000),
   FETCH_MAX_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB
+
+  // ── AI recipe assistant (OpenRouter) ──
+  // Leaving OPENROUTER_API_KEY empty disables the assistant entirely: the API
+  // reports it as unavailable and the frontend hides the chat option.
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
+  // Any OpenRouter model slug — swap it without touching code. The model must
+  // support image input and structured (JSON schema) output.
+  OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().default(2048),
+  AI_TIMEOUT_MS: z.coerce.number().default(60000),
+  // Per-user request budget for the assistant (both chat and extraction).
+  AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(20),
+  // Sent to OpenRouter as HTTP-Referer / X-Title, which is what powers their
+  // app leaderboard and makes requests identifiable in the dashboard.
+  AI_APP_URL: z.string().optional(),
+  AI_APP_NAME: z.string().default('RecipeVault'),
 });
 
 export type Env = z.infer<typeof envSchema>;

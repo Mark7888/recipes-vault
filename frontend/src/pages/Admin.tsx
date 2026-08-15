@@ -6,7 +6,7 @@ import type { AdminUser, AdminInvite, AdminPasswordReset } from '../api/admin.ap
 import {
   useAdminUsers, useAdminInvites, useAdminPasswordResets, useAdminLogin,
   useCreateAdminInvite, useRevokeAdminInvite, useCreateAdminPasswordReset,
-  useRevokeAdminPasswordReset, useDeleteAdminUser,
+  useRevokeAdminPasswordReset, useDeleteAdminUser, useSetAdminUserAiAccess,
 } from '../hooks/useAdmin';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PasswordInput } from '../components/ui/PasswordInput';
@@ -57,6 +57,7 @@ export default function Admin() {
   const createReset = useCreateAdminPasswordReset(token);
   const revokeReset = useRevokeAdminPasswordReset(token);
   const deleteUserMutation = useDeleteAdminUser(token);
+  const setAiAccess = useSetAdminUserAiAccess(token);
 
   const [inviteDesc, setInviteDesc] = useState('');
   const [newInviteUrl, setNewInviteUrl] = useState('');
@@ -126,6 +127,15 @@ export default function Admin() {
       setResetToRevoke(null);
     } catch (err) {
       setActionError(getErrorMessage(err, 'Failed to revoke reset link.'));
+    }
+  }
+
+  async function handleToggleAi(user: AdminUser) {
+    setActionError('');
+    try {
+      await setAiAccess.mutateAsync({ userId: user.id, enabled: !user.aiEnabled });
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Failed to change AI access.'));
     }
   }
 
@@ -278,7 +288,10 @@ export default function Admin() {
 
       {/* Users */}
       <Box>
-        <Heading size="md" mb={4}>Users</Heading>
+        <Heading size="md" mb={1}>Users</Heading>
+        <Text fontSize="sm" color="fg.muted" mb={4}>
+          The AI recipe assistant is off for every account by default — enable it per user here.
+        </Text>
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
           {users.length === 0 ? (
             <Box p={4}><Text color="fg.muted" fontSize="sm">No registered users yet.</Text></Box>
@@ -298,13 +311,25 @@ export default function Admin() {
                       {user.status === 'PENDING_DELETION' && (
                         <Badge colorPalette="red" size="sm">Deleting…</Badge>
                       )}
+                      {user.status === 'ACTIVE' && user.aiEnabled && (
+                        <Badge colorPalette="green" size="sm">AI enabled</Badge>
+                      )}
                     </HStack>
                     <Text fontSize="xs" color="fg.subtle">
                       Joined {formatDate(user.createdAt)}
                     </Text>
                   </VStack>
                   {user.status === 'ACTIVE' && (
-                    <HStack gap={2}>
+                    <HStack gap={2} flexWrap="wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorPalette={user.aiEnabled ? 'gray' : 'green'}
+                        loading={setAiAccess.isPending && setAiAccess.variables?.userId === user.id}
+                        onClick={() => handleToggleAi(user)}
+                      >
+                        {user.aiEnabled ? 'Disable AI' : 'Enable AI'}
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"

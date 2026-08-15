@@ -11,7 +11,7 @@ import { z } from 'zod';
 export async function listUsers(_req: Request, res: Response): Promise<void> {
   const users = await prisma.user.findMany({
     where: { status: { not: UserStatus.DELETED } },
-    select: { id: true, username: true, status: true, createdAt: true },
+    select: { id: true, username: true, status: true, aiEnabled: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   });
   res.json(users);
@@ -89,6 +89,27 @@ export async function revokeInvite(req: Request, res: Response): Promise<void> {
     const message = (err as Error).message;
     res.status(message === 'Invite link not found' ? 404 : 409).json({ error: message });
   }
+}
+
+/**
+ * Grants or revokes access to the AI recipe assistant. Off by default for every
+ * account; only the admin can flip it.
+ */
+export async function setUserAiAccess(req: Request, res: Response): Promise<void> {
+  const params = idParamSchema.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const body = z.object({ enabled: z.boolean() }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: 'Invalid input' }); return; }
+
+  const user = await prisma.user.findUnique({ where: { id: params.data.id } });
+  if (!user || user.status !== UserStatus.ACTIVE) { res.status(404).json({ error: 'User not found' }); return; }
+
+  const updated = await prisma.user.update({
+    where: { id: params.data.id },
+    data: { aiEnabled: body.data.enabled },
+    select: { id: true, username: true, status: true, aiEnabled: true, createdAt: true },
+  });
+  res.json(updated);
 }
 
 export async function deleteUser(req: Request, res: Response): Promise<void> {

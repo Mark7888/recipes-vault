@@ -6,6 +6,8 @@ export interface AdminUser {
   id: string;
   username: string;
   status: 'ACTIVE' | 'PENDING_DELETION';
+  /** Access to the AI recipe assistant; off unless an admin turns it on. */
+  aiEnabled: boolean;
   createdAt: string;
 }
 
@@ -38,6 +40,9 @@ export const adminApi = {
 
   deleteUser: (token: string, userId: string) =>
     axios.delete(`/api/admin/users/${userId}`, auth(token)).then(r => r.data as { status: string }),
+
+  setUserAiAccess: (token: string, userId: string, enabled: boolean) =>
+    axios.patch(`/api/admin/users/${userId}/ai-access`, { enabled }, auth(token)).then(r => r.data as AdminUser),
 
   getInvites: (token: string) =>
     axios.get('/api/admin/invites', auth(token)).then(r => r.data as AdminInvite[]),
