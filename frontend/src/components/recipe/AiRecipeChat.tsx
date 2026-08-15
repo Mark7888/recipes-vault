@@ -8,9 +8,8 @@ import type { AiChatMessage } from '../../api/ai.api';
 import { useAiChat, useAiCreateRecipe } from '../../hooks/useAi';
 import { getAiFailure, type AiFailure } from '../../utils/errors';
 import { fileToChatImage } from '../../utils/image';
-import {
-  SparkleIcon, PaperclipIcon, SendIcon, CloseIcon, RefreshIcon,
-} from '../ui/icons';
+import { SparkleIcon, PaperclipIcon, SendIcon, CloseIcon } from '../ui/icons';
+import { AiErrorPanel } from '../ui/AiErrorPanel';
 
 /** A chat turn plus the bits of UI state that never travel to the server. */
 export interface ChatEntry extends AiChatMessage {
@@ -80,21 +79,6 @@ function RichText({ text }: { text: string }) {
         return <Text key={i} lineHeight="1.6">{renderInline(trimmed)}</Text>;
       })}
     </VStack>
-  );
-}
-
-function ErrorPanel({ failure, onRetry, retrying }: { failure: AiFailure; onRetry?: () => void; retrying?: boolean }) {
-  return (
-    <Box w="full" p={3} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
-      <VStack align="start" gap={2}>
-        <Text color="fg.error" fontSize="sm">{failure.message}</Text>
-        {failure.retryable && onRetry && (
-          <Button size="xs" variant="outline" colorPalette="red" onClick={onRetry} loading={retrying}>
-            <RefreshIcon size={13} /> Try again
-          </Button>
-        )}
-      </VStack>
-    </Box>
   );
 }
 
@@ -337,7 +321,7 @@ export function AiRecipeChat({ messages, onMessagesChange, model }: Props) {
             )}
 
             {chatFailure && (
-              <ErrorPanel
+              <AiErrorPanel
                 failure={chatFailure}
                 retrying={chat.isPending}
                 onRetry={canRetry ? () => void requestReply(messages) : undefined}
@@ -428,7 +412,7 @@ export function AiRecipeChat({ messages, onMessagesChange, model }: Props) {
 
           <VStack align="stretch" gap={2} mt={3}>
             {saveFailure && (
-              <ErrorPanel failure={saveFailure} retrying={createRecipe.isPending} onRetry={() => void handleSave()} />
+              <AiErrorPanel failure={saveFailure} retrying={createRecipe.isPending} onRetry={() => void handleSave()} />
             )}
             <HStack justify="space-between" gap={3} flexWrap="wrap">
               <Text fontSize="xs" color="fg.muted">

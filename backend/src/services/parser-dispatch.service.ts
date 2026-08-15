@@ -37,13 +37,25 @@ function extractFallbackContent(html: string, url: string): ParsedRecipe {
   };
 }
 
-export async function captureUrl(rawUrl: string): Promise<ParsedRecipe> {
+export interface FetchedPage {
+  /** The validated URL that was actually requested. */
+  url: string;
+  /** The page source, or null when it could not be fetched. */
+  html: string | null;
+}
+
+/**
+ * Fetches a page behind the SSRF guard and the configured timeout/size caps.
+ * Every capture path — the parsers and the AI one — goes through here, so the
+ * guard can never be bypassed by adding a new caller.
+ *
+ * Throws when the URL itself is unusable (malformed, non-http, private target);
+ * a failed fetch is reported as `html: null` instead, because the caller may
+ * still have something useful to do with the URL.
+ */
+export async function fetchPage(rawUrl: string): Promise<FetchedPage> {
   const validatedUrl = await validateUrl(rawUrl);
   const urlString = validatedUrl.toString();
-  const domain = validatedUrl.hostname.replace(/^www\./, '');
-
-  let html: string;
-  let fetchFailed = false;
 
   try {
     const response = await axios.get(urlString, {
@@ -55,30 +67,44 @@ export async function captureUrl(rawUrl: string): Promise<ParsedRecipe> {
         'Accept': 'text/html,application/xhtml+xml',
       },
     });
-    html = response.data as string;
+    const html = response.data as string;
+    return { url: urlString, html: html || null };
   } catch {
-    fetchFailed = true;
-    html = '';
+    return { url: urlString, html: null };
   }
+}
 
-  if (fetchFailed || !html) {
-    return { ...extractFallbackContent('', urlString), notes: "Couldn't fetch this page." };
-  }
+/**
+ * Runs the parser chain over already-fetched HTML: site parser, then JSON-LD,
+ * then the title-and-images fallback.
+ */
+export async function parseHtml(html: string, url: string): Promise<ParsedRecipe> {
+  const domain = new URL(url).hostname.replace(/^www\./, '');
 
   // Try site-specific parser first
   const siteParser = getParser(domain);
   if (siteParser) {
     try {
-      return await siteParser.parse(html, urlString);
+      return await siteParser.parse(html, url);
     } catch {
       // fall through to JSON-LD
     }
   }
 
   // Try JSON-LD extraction
-  const jsonLdResult = extractRecipeFromJsonLd(html, urlString);
+  const jsonLdResult = extractRecipeFromJsonLd(html, url);
   if (jsonLdResult) return jsonLdResult;
 
   // Fallback
-  return extractFallbackContent(html, urlString);
+  return extractFallbackContent(html, url);
+}
+
+export async function captureUrl(rawUrl: string): Promise<ParsedRecipe> {
+  const page = await fetchPage(rawUrl);
+
+  if (!page.html) {
+    return { ...extractFallbackContent('', page.url), notes: "Couldn't fetch this page." };
+  }
+
+  return parseHtml(page.html, page.url);
 }

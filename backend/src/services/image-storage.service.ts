@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
+import { logger } from '../lib/logger.js';
 
 const MAX_IMAGE_DIMENSION = 1920;
 
@@ -64,4 +65,34 @@ export async function downloadAndSaveImage(imageUrl: string, recipeId: string): 
   } catch {
     return null;
   }
+}
+
+const MAX_DOWNLOADED_IMAGES = 15;
+
+/**
+ * Pulls the images a parser found into the recipe, in the background: the
+ * capture response must not wait on somebody else's CDN. The first image that
+ * lands becomes the cover.
+ */
+export function downloadImagesInBackground(recipeId: string, imageUrls: string[]): void {
+  if (imageUrls.length === 0) return;
+
+  setImmediate(() => {
+    void (async () => {
+      let coverSet = false;
+      for (const imgUrl of imageUrls.slice(0, MAX_DOWNLOADED_IMAGES)) {
+        const filename = await downloadAndSaveImage(imgUrl, recipeId);
+        if (!filename) continue;
+        const imageRecord = await saveImageRecord(recipeId, filename);
+        if (!coverSet) {
+          coverSet = true;
+          await prisma.recipe.update({ where: { id: recipeId }, data: { coverImageId: imageRecord.id } });
+        }
+      }
+    })().catch((err: unknown) => {
+      // Nobody is waiting on this any more, so a failure must not take the
+      // process down with it — the user can still add images by hand.
+      logger.error({ err, recipeId }, 'Background image download failed');
+    });
+  });
 }

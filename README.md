@@ -5,6 +5,7 @@ A self-hosted, invite-only Progressive Web App for capturing and organizing reci
 ## What it does
 
 - **Capture recipes from any URL** — paste a link or prefix any recipe URL with your domain to automatically extract title, ingredients, steps, times, and images
+- **Parse a stubborn page with AI** — when a site has no proper parser and the capture comes back empty, one button next to *Capture Recipe* has the AI read the page instead; the images the parser found are kept (off by default, enabled per user by the admin)
 - **Chat your way to a recipe** — optional AI assistant that suggests recipes, talks through what's in your fridge, and reads recipe screenshots; one button turns the result into a ready-to-edit recipe (off by default, enabled per user by the admin)
 - **Edit after capture** — correct or refine what was extracted before saving
 - **Organize with tags** — tag recipes and filter by tag in your library
@@ -92,6 +93,14 @@ Navigate to `https://yourdomain.com/www.seriouseats.com/some-recipe` and you'll 
 **Method B — Add Recipe page:**
 Click "Add Recipe" in the nav, paste any recipe URL, and click "Capture Recipe".
 
+**Method B2 — Let the AI read the page:**
+Some sites have no proper parser, and a capture from them comes back without
+ingredients or steps. On the Add Recipe page the sparkle button next to "Capture
+Recipe" fetches the page and has the AI parse its text instead — the images the
+normal parser found still end up on the recipe. When a normal capture comes back
+half empty the editor offers the same thing in a small dialog, and the result
+replaces that recipe rather than leaving a duplicate. Requires the setup below.
+
 **Method C — Chat with the AI assistant:**
 On the Add Recipe page pick "Chat with AI", describe what you feel like (or attach a
 screenshot of a recipe), and hit "Save as recipe" when you like what you see. You land
@@ -114,6 +123,7 @@ Add to `.env`:
 | `AI_MAX_OUTPUT_TOKENS` | Output budget per reply (default 2048). |
 | `AI_TIMEOUT_MS` | How long to wait for a reply (default 60000). |
 | `AI_RATE_LIMIT_PER_MINUTE` | Per-user request cap, protects your credits (default 20). |
+| `AI_PAGE_MAX_CHARS` | How much of a page's text is sent when parsing a URL with AI (default 24000). |
 | `AI_APP_URL` / `AI_APP_NAME` | Reported to OpenRouter as `HTTP-Referer` / `X-Title`. |
 
 Swapping models is an env change plus `docker compose up -d` — no code change.
@@ -123,9 +133,11 @@ Swapping models is an env change plus `docker compose up -d` — no code change.
 Log in to `/admin`, find the user under **Users**, and click **Enable AI**. The same
 button revokes it, and revoking takes effect on the user's very next request.
 
-Nothing about the AI endpoints is reachable without both a valid login *and* that flag,
-and conversations are never stored server-side — they live in the browser tab until you
-save a recipe or leave the page.
+Nothing about the AI endpoints is reachable without both a valid login *and* that flag —
+that covers URL parsing as well as the chat, and the UI hides both from accounts without
+it. Pages are fetched through the same guard as a normal capture (no private addresses,
+same timeout and size caps), and conversations are never stored server-side — they live
+in the browser tab until you save a recipe or leave the page.
 
 ## Updating
 

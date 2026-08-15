@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Heading, HStack, Input, VStack, Text, Textarea, Spinner
 } from '@chakra-ui/react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
   type DragEndEvent
@@ -11,9 +11,11 @@ import {
   SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates
 } from '@dnd-kit/sortable';
 import { useRecipe, useUpdateRecipe, useDeleteRecipe, useRecipeImages, useSetRecipeTags } from '../hooks/useRecipes';
+import { useAiStatus } from '../hooks/useAi';
 import { useAuthStore } from '../store/authStore';
 import { TagInput } from '../components/recipe/TagInput';
 import { ImagePicker } from '../components/recipe/ImagePicker';
+import { AiReparseDialog } from '../components/recipe/AiReparseDialog';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SortableStepItem } from '../components/recipe/SortableStepItem';
 import { SortableIngredientItem } from '../components/recipe/SortableIngredientItem';
@@ -29,6 +31,16 @@ interface EditableInstruction extends Instruction {
 }
 
 const newId = () => crypto.randomUUID();
+
+/** Names what a capture failed to find, or null when it found both. */
+function describeMissing(recipe: { ingredients: unknown[]; instructions: unknown[] }): string | null {
+  const noIngredients = recipe.ingredients.length === 0;
+  const noSteps = recipe.instructions.length === 0;
+  if (noIngredients && noSteps) return 'ingredients or steps';
+  if (noIngredients) return 'ingredients';
+  if (noSteps) return 'steps';
+  return null;
+}
 
 // Matches a leading number (including fractions/decimals) and an optional fused unit suffix, e.g. "80g" → ["80","g"], "2" → ["2",""]
 const NUMERIC_PREFIX = /^([\d.,/¼½¾⅓⅔⅛⅜⅝⅞]+)(.*)/;
@@ -56,8 +68,11 @@ export default function RecipeEdit() {
   const deleteRecipe = useDeleteRecipe();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const aiStatus = useAiStatus();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [aiReparse, setAiReparse] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [ingredients, setIngredients] = useState<EditableIngredient[]>([]);
@@ -108,6 +123,27 @@ export default function RecipeEdit() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
+
+  // A capture the parsers could not fully read lands here with ?aiSuggest=1.
+  // The offer is one-shot — the flag is dropped either way — and only exists
+  // for accounts that actually have the assistant.
+  useEffect(() => {
+    if (searchParams.get('aiSuggest') !== '1' || !recipe || aiStatus.isLoading) return;
+
+    const missing = describeMissing(recipe);
+    if (missing && recipe.sourceUrl && aiStatus.data?.enabled) setAiReparse(missing);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('aiSuggest');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, recipe, aiStatus.isLoading, aiStatus.data?.enabled]);
+
+  const handleAiParsed = () => {
+    setAiReparse(null);
+    // The recipe on the server is a different one now, so let the refetch
+    // repopulate the form rather than leaving the empty fields on screen.
+    initializedRecipeId.current = null;
+  };
 
   const addIngredient = () => setIngredients([...ingredients, { amount: '', unit: '', name: '', id: newId() }]);
   const removeIngredient = (i: number) => setIngredients(ingredients.filter((_, idx) => idx !== i));
@@ -227,6 +263,17 @@ export default function RecipeEdit() {
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(false)}
         />
+
+        {aiReparse && recipe.sourceUrl && (
+          <AiReparseDialog
+            open
+            recipeId={recipe.id}
+            sourceUrl={recipe.sourceUrl}
+            missing={aiReparse}
+            onCancel={() => setAiReparse(null)}
+            onParsed={handleAiParsed}
+          />
+        )}
 
         <ConfirmDialog
           open={confirmCancel}

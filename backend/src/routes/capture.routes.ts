@@ -4,12 +4,22 @@ import { z } from 'zod';
 import { captureUrl } from '../services/parser-dispatch.service.js';
 import { createRecipe, setRecipeTags } from '../services/recipes.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
-import { downloadAndSaveImage, saveImageRecord } from '../services/image-storage.service.js';
-import { prisma } from '../lib/prisma.js';
+import { downloadImagesInBackground } from '../services/image-storage.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 const router = Router();
+
+/**
+ * A capture that produced no ingredients or no steps is one the parsers could
+ * not really read. Both capture entry points report it so the UI can offer the
+ * AI a go at the same page.
+ */
+export function isCaptureIncomplete(recipe: { ingredients: unknown; instructions: unknown }): boolean {
+  const ingredients = recipe.ingredients as unknown[];
+  const instructions = recipe.instructions as unknown[];
+  return ingredients.length === 0 || instructions.length === 0;
+}
 
 export async function captureAndCreateRecipe(url: string, userId: string) {
   const parsed = await captureUrl(url);
@@ -30,29 +40,14 @@ export async function captureAndCreateRecipe(url: string, userId: string) {
     await setRecipeTags(recipe.id, tags.map((t) => t.id));
   }
 
-  // Download and save images in the background so the response stays fast
-  if (parsed.imageUrls.length > 0) {
-    setImmediate(async () => {
-      let coverSet = false;
-      for (const imgUrl of parsed.imageUrls.slice(0, 15)) {
-        const filename = await downloadAndSaveImage(imgUrl, recipe.id);
-        if (filename) {
-          const imageRecord = await saveImageRecord(recipe.id, filename);
-          if (!coverSet) {
-            coverSet = true;
-            await prisma.recipe.update({ where: { id: recipe.id }, data: { coverImageId: imageRecord.id } });
-          }
-        }
-      }
-    });
-  }
+  downloadImagesInBackground(recipe.id, parsed.imageUrls);
 
   return recipe;
 }
 
 export async function handleCapture(url: string, userId: string, res: Response): Promise<void> {
   const recipe = await captureAndCreateRecipe(url, userId);
-  res.status(201).json({ recipeId: recipe.id });
+  res.status(201).json({ recipeId: recipe.id, incomplete: isCaptureIncomplete(recipe) });
 }
 
 router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {

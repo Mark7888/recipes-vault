@@ -12,7 +12,7 @@ import tagsRoutes from './routes/tags.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import sharedRoutes from './routes/shared.routes.js';
 import shoppingListRoutes from './routes/shopping-list.routes.js';
-import captureRoutes, { captureAndCreateRecipe } from './routes/capture.routes.js';
+import captureRoutes, { captureAndCreateRecipe, isCaptureIncomplete } from './routes/capture.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import { verifyRefreshToken } from './services/auth.service.js';
 import { prisma } from './lib/prisma.js';
@@ -121,7 +121,10 @@ export function createApp() {
 
         try {
           const recipe = await captureAndCreateRecipe(targetUrl, userId);
-          res.redirect(`/recipes/${recipe.id}/edit`);
+          // The editor offers an AI re-parse on this flag; it only acts on it
+          // for accounts that actually have the assistant.
+          const suffix = isCaptureIncomplete(recipe) ? '?aiSuggest=1' : '';
+          res.redirect(`/recipes/${recipe.id}/edit${suffix}`);
         } catch (err) {
           next(err);
         }

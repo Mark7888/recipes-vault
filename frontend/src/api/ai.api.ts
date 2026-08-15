@@ -28,6 +28,15 @@ export interface AiErrorBody {
   retryAfterSeconds?: number;
 }
 
+export interface AiCaptureParams {
+  url: string;
+  /**
+   * Re-parsing an existing recipe: the AI result replaces it rather than
+   * creating a second copy of the same page.
+   */
+  recipeId?: string;
+}
+
 export const aiApi = {
   status: () => apiClient.get<AiStatus>('/ai/status').then(r => r.data),
 
@@ -36,4 +45,8 @@ export const aiApi = {
 
   createRecipe: (messages: AiChatMessage[]) =>
     apiClient.post<{ recipeId: string }>('/ai/recipe', { messages }).then(r => r.data),
+
+  capture: ({ url, recipeId }: AiCaptureParams) =>
+    apiClient.post<{ recipeId: string }>('/ai/capture', { url, ...(recipeId ? { recipeId } : {}) })
+      .then(r => r.data),
 };
