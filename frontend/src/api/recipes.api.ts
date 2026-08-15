@@ -12,6 +12,12 @@ export interface RecipeListParams {
   offset?: number;
 }
 
+export interface CaptureResult {
+  recipeId: string;
+  /** The parsers came back without ingredients or without steps. */
+  incomplete: boolean;
+}
+
 export interface RecipeListResult {
   items: Recipe[];
   total: number;
@@ -71,7 +77,7 @@ export const recipesApi = {
     apiClient.patch(`/recipes/${id}/cover-image`, { imageId }).then(r => r.data),
 
   capture: (url: string) =>
-    apiClient.post<{ recipeId: string }>('/capture', { url }).then(r => r.data),
+    apiClient.post<CaptureResult>('/capture', { url }).then(r => r.data),
 
   share: (id: string) =>
     apiClient.post<{ token: string }>(`/recipes/${id}/share`).then(r => r.data),

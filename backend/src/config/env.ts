@@ -23,6 +23,9 @@ const envSchema = z.object({
   AI_TIMEOUT_MS: z.coerce.number().default(60000),
   // Per-user request budget for the assistant (both chat and extraction).
   AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(20),
+  // How much of a page's text is handed to the model when a URL is parsed with
+  // AI. Keeps the prompt — and its cost — bounded on bloated pages.
+  AI_PAGE_MAX_CHARS: z.coerce.number().default(24000),
   // Sent to OpenRouter as HTTP-Referer / X-Title, which is what powers their
   // app leaderboard and makes requests identifiable in the dashboard.
   AI_APP_URL: z.string().optional(),

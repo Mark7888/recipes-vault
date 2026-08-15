@@ -15,7 +15,9 @@ export type AiErrorCode =
   | 'AI_CONTENT_FILTERED'
   | 'AI_TRUNCATED'
   | 'AI_BAD_RESPONSE'
-  | 'AI_NO_RECIPE';
+  | 'AI_NO_RECIPE'
+  | 'AI_PAGE_UNREACHABLE'
+  | 'AI_PAGE_EMPTY';
 
 interface AiErrorOptions {
   /** HTTP status to answer the browser with. */
@@ -128,6 +130,20 @@ export const aiErrors = {
     new AiError(
       'AI_NO_RECIPE',
       "There is no complete recipe in this chat yet. Ask the assistant for one first, then try saving again.",
+      { status: 422, retryable: false }
+    ),
+
+  pageUnreachable: (detail?: string) =>
+    new AiError(
+      'AI_PAGE_UNREACHABLE',
+      "Couldn't open that page, so there was nothing to hand the AI. Check the link and try again.",
+      { status: 502, retryable: true, detail }
+    ),
+
+  pageEmpty: () =>
+    new AiError(
+      'AI_PAGE_EMPTY',
+      'That page had no readable text to work from. It probably needs JavaScript or a login to show the recipe.',
       { status: 422, retryable: false }
     ),
 

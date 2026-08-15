@@ -13,7 +13,9 @@ interface RecipeInput {
   prepTime?: number;
   cookTime?: number;
   servings?: number;
-  notes?: string;
+  // null clears a note that is no longer true (an AI re-parse replacing what a
+  // failed capture wrote); undefined leaves it alone.
+  notes?: string | null;
 }
 
 export async function createRecipe(ownerId: string, data: RecipeInput) {

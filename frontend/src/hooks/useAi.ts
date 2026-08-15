@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { aiApi, type AiChatMessage } from '../api/ai.api';
+import { aiApi, type AiCaptureParams, type AiChatMessage } from '../api/ai.api';
 import { recipeKeys } from './useRecipes';
 
 export const aiKeys = {
@@ -27,6 +27,19 @@ export function useAiCreateRecipe() {
     mutationFn: (messages: AiChatMessage[]) => aiApi.createRecipe(messages),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: recipeKeys.all });
+    },
+  });
+}
+
+/** Parses a URL with the AI instead of the site parsers. */
+export function useAiCapture() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: AiCaptureParams) => aiApi.capture(params),
+    onSuccess: ({ recipeId }) => {
+      qc.invalidateQueries({ queryKey: recipeKeys.all });
+      // A re-parse rewrites a recipe that is very likely already on screen.
+      qc.invalidateQueries({ queryKey: recipeKeys.detail(recipeId) });
     },
   });
 }

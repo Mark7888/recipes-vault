@@ -4,10 +4,13 @@ import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
 import { AiError, aiErrors } from '../services/ai/ai-errors.js';
-import { continueChat, extractRecipe } from '../services/ai/recipe-assistant.service.js';
+import { continueChat, extractRecipe, extractRecipeFromPage } from '../services/ai/recipe-assistant.service.js';
 import { getAiModel, isAiConfigured, type ChatMessage } from '../services/ai/openrouter.service.js';
-import { createRecipe, setRecipeTags } from '../services/recipes.service.js';
+import { createRecipe, getRecipeById, setRecipeTags, updateRecipe } from '../services/recipes.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
+import { fetchPage, parseHtml } from '../services/parser-dispatch.service.js';
+import { extractPageText } from '../services/page-text.service.js';
+import { downloadImagesInBackground } from '../services/image-storage.service.js';
 import { createRateLimiter } from '../utils/rate-limit.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
@@ -32,6 +35,20 @@ const messageSchema = z.object({
 
 const conversationSchema = z.object({
   messages: z.array(messageSchema).min(1).max(MAX_MESSAGES),
+});
+
+// Below this there is nothing on the page worth spending a request on — the
+// page needs JavaScript, or a login, or simply is not a recipe.
+const MIN_PAGE_CHARS = 200;
+
+const captureSchema = z.object({
+  url: z.string().url('That does not look like a valid URL.').max(2048),
+  /**
+   * Set when the AI is re-parsing a page the site parsers already captured:
+   * the result then replaces that recipe instead of leaving a half-empty
+   * duplicate behind. Must belong to the caller.
+   */
+  recipeId: z.string().uuid().optional(),
 });
 
 const rateLimiter = createRateLimiter(env.AI_RATE_LIMIT_PER_MINUTE, 60_000);
@@ -138,6 +155,89 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
 
     logger.info({ userId, recipeId: recipe.id }, 'Created recipe from AI chat');
     res.status(201).json({ recipeId: recipe.id });
+  } catch (err) {
+    sendAiError(res, err);
+  }
+}
+
+/**
+ * The AI alternative to the site parsers: fetch the page, hand its readable
+ * text to the model, and land on a real recipe the same way a URL capture
+ * does. The parsers still run — they are better at finding the pictures than
+ * the model, which never sees them.
+ *
+ * With `recipeId`, the result replaces that recipe (used when a capture came
+ * back without ingredients or steps) instead of leaving a duplicate behind.
+ */
+export async function postAiCapture(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  try {
+    const body = captureSchema.safeParse(req.body);
+    if (!body.success) throw aiErrors.invalidRequest(body.error.issues[0]?.message ?? 'Invalid request.');
+    const { url, recipeId } = body.data;
+
+    // Ownership is settled before a single token is spent, and a recipe that
+    // is not the caller's is reported the same way as one that never existed.
+    const target = recipeId ? await getRecipeById(recipeId) : null;
+    if (recipeId && (!target || target.ownerId !== userId)) {
+      throw aiErrors.invalidRequest('That recipe is not available to parse again.');
+    }
+
+    enforceRateLimit(userId);
+
+    let page;
+    try {
+      page = await fetchPage(url);
+    } catch (err) {
+      // The URL parser and the SSRF guard both name what is wrong, and the URL
+      // came from this user, so the reason is safe to pass back.
+      throw aiErrors.invalidRequest((err as Error).message);
+    }
+    if (!page.html) throw aiErrors.pageUnreachable();
+
+    const { title, text } = extractPageText(page.html, env.AI_PAGE_MAX_CHARS);
+    if (text.length < MIN_PAGE_CHARS) throw aiErrors.pageEmpty();
+
+    const extracted = await extractRecipeFromPage({ url: page.url, title, text });
+    const parsed = await parseHtml(page.html, page.url);
+
+    const recipeData = {
+      title: extracted.title,
+      sourceUrl: page.url,
+      isFallback: false,
+      ingredients: extracted.ingredients,
+      instructions: extracted.instructions,
+      prepTime: extracted.prepTime,
+      cookTime: extracted.cookTime,
+      servings: extracted.servings,
+      // Explicitly null rather than absent: replacing a recipe has to clear a
+      // note the failed capture left behind ("Couldn't fetch this page.").
+      notes: extracted.notes ?? null,
+    };
+
+    const recipe = target
+      ? await updateRecipe(target.id, recipeData)
+      : await createRecipe(userId, recipeData);
+
+    // The model's own keywords, falling back to whatever a site parser found.
+    const tagNames = extracted.tags.length > 0 ? extracted.tags : (parsed.tags ?? []);
+    if (tagNames.length > 0) {
+      const tags = await findOrCreateTags(tagNames);
+      // Tags the user already put on the recipe are theirs to keep.
+      const tagIds = new Set([...(target?.tags.map((t) => t.id) ?? []), ...tags.map((t) => t.id)]);
+      await setRecipeTags(recipe.id, [...tagIds]);
+    }
+
+    // A replaced recipe already has the images its capture downloaded.
+    if (!target || target.images.length === 0) {
+      downloadImagesInBackground(recipe.id, parsed.imageUrls);
+    }
+
+    logger.info(
+      { userId, recipeId: recipe.id, replaced: !!target, textChars: text.length },
+      'Created recipe from AI page parse'
+    );
+    res.status(target ? 200 : 201).json({ recipeId: recipe.id });
   } catch (err) {
     sendAiError(res, err);
   }
