@@ -2,7 +2,8 @@ import { Box, Text, Badge, HStack, Image, VStack, Spinner } from '@chakra-ui/rea
 import { Link } from 'react-router-dom';
 import type { Recipe } from '../../types';
 import { getSiteDomain } from '../../utils/site';
-import { ImageIcon, TrashIcon } from '../ui/icons';
+import { TrashIcon } from '../ui/icons';
+import { RecipeCoverPlaceholder } from './RecipeCoverPlaceholder';
 
 interface Props {
   recipe: Recipe;
@@ -29,9 +30,7 @@ export function RecipeCard({ recipe, addedBy, onRemove, isRemoving }: Props) {
         {coverUrl ? (
           <Image src={coverUrl} alt={recipe.title} h={{ base: '110px', md: '160px' }} w="full" objectFit="cover" />
         ) : (
-          <Box h={{ base: '110px', md: '160px' }} bg="bg.muted" color="fg.subtle" display="flex" alignItems="center" justifyContent="center">
-            <ImageIcon size={36} />
-          </Box>
+          <RecipeCoverPlaceholder h={{ base: '110px', md: '160px' }} w="full" />
         )}
         <VStack p={3} align="start" gap={2}>
           <Text

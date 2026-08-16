@@ -159,6 +159,21 @@ export async function updateRecipe(id: string, data: Partial<RecipeInput>) {
   });
 }
 
+/**
+ * Falls the cover back to the recipe's first picture when it has pictures but
+ * none was picked. Run on save, so a recipe that got images without anyone
+ * choosing a cover (uploaded by hand, or written by an AI capture) still shows
+ * one on the listings.
+ */
+export async function ensureCoverImage(recipeId: string): Promise<void> {
+  const recipe = await prisma.recipe.findUnique({
+    where: { id: recipeId },
+    select: { coverImageId: true, images: { orderBy: { order: 'asc' }, take: 1, select: { id: true } } },
+  });
+  if (!recipe || recipe.coverImageId || recipe.images.length === 0) return;
+  await prisma.recipe.update({ where: { id: recipeId }, data: { coverImageId: recipe.images[0].id } });
+}
+
 export async function deleteRecipe(id: string) {
   return prisma.recipe.delete({ where: { id } });
 }

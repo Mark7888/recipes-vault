@@ -1,5 +1,13 @@
 import { prisma } from '../lib/prisma.js';
 
+/**
+ * Provenance tag put on every recipe the AI parsed or wrote. Lower-case like
+ * every other tag in the app (see findOrCreateTags), so a hand-typed one and
+ * this one are the same tag rather than two that only differ in case. Its
+ * counterpart, "manually captured", is added by the editor on save.
+ */
+export const AI_CAPTURE_TAG = 'captured by ai';
+
 export async function searchTags(search: string) {
   return prisma.tag.findMany({
     where: { name: { contains: search, mode: 'insensitive' } },
@@ -9,12 +17,15 @@ export async function searchTags(search: string) {
 }
 
 export async function findOrCreateTags(names: string[]) {
+  // Normalize first and then dedupe: the upserts run in parallel, so the same
+  // name twice in one call is two racing inserts on a unique column.
+  const normalized = [...new Set(names.map((name) => name.toLowerCase().trim()).filter(Boolean))];
   const tags = await Promise.all(
-    names.map((name) =>
+    normalized.map((name) =>
       prisma.tag.upsert({
-        where: { name: name.toLowerCase().trim() },
+        where: { name },
         update: {},
-        create: { name: name.toLowerCase().trim() },
+        create: { name },
       })
     )
   );

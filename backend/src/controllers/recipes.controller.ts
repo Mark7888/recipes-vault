@@ -7,6 +7,7 @@ import {
   updateRecipe,
   deleteRecipe,
   duplicateRecipe,
+  ensureCoverImage,
   setRecipeTags,
   isRecipeAccessibleByUser,
   getRecipeSitesForUser,
@@ -72,6 +73,8 @@ export async function patchRecipe(req: Request, res: Response): Promise<void> {
   const recipe = await getRecipeById(id);
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+  // Before the update, so the response already carries the cover it settled on.
+  await ensureCoverImage(recipe.id);
   const updated = await updateRecipe(recipe.id, req.body as Parameters<typeof updateRecipe>[1]);
   res.json(updated);
 }
