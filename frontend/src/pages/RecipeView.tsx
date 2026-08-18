@@ -11,6 +11,7 @@ import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
 import { AddToCollectionPanel } from '../components/recipe/AddToCollectionPanel';
 import { ImageGallery } from '../components/recipe/ImageGallery';
+import { RecipeOriginBadge } from '../components/recipe/RecipeOriginBadge';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { CartIcon, CheckIcon, CopyIcon, EditIcon, ExternalLinkIcon, ShareIcon } from '../components/ui/icons';
 
@@ -101,9 +102,7 @@ export default function RecipeView() {
                 </a>
               </Text>
             )}
-            {recipe.isFallback && (
-              <Badge colorPalette="orange">Manually captured</Badge>
-            )}
+            <RecipeOriginBadge origin={recipe.origin} />
           </VStack>
           {isOwner && (
             // wraps so the four actions never push the page wider than a phone

@@ -20,7 +20,6 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SortableStepItem } from '../components/recipe/SortableStepItem';
 import { SortableIngredientItem } from '../components/recipe/SortableIngredientItem';
 import { getErrorMessage } from '../utils/errors';
-import { MANUAL_CAPTURE_TAG } from '../utils/tags';
 import type { Ingredient, Instruction } from '../types';
 
 interface EditableIngredient extends Ingredient {
@@ -219,9 +218,6 @@ export default function RecipeEdit() {
   };
 
   const handleSave = async () => {
-    // A draft the user actually changed before saving was captured by hand,
-    // whatever produced it — a parser, the AI, or the blank-recipe button.
-    const tagsToSave = dirty && !tags.includes(MANUAL_CAPTURE_TAG) ? [...tags, MANUAL_CAPTURE_TAG] : tags;
     try {
       await updateRecipe.mutateAsync({
         id: recipe.id,
@@ -233,9 +229,11 @@ export default function RecipeEdit() {
           cookTime: cookTime ? parseInt(cookTime) : undefined,
           servings: servings ? parseInt(servings) : undefined,
           notes: notes || undefined,
+          // A parse the user reworked before saving is recorded as such.
+          modified: dirty,
         },
       });
-      await setRecipeTags.mutateAsync({ id: recipe.id, tags: tagsToSave });
+      await setRecipeTags.mutateAsync({ id: recipe.id, tags });
       navigate(`/recipes/${recipe.id}`);
     } catch {
       // surfaced below via updateRecipe.isError / setRecipeTags.isError

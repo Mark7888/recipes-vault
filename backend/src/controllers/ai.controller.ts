@@ -7,7 +7,7 @@ import { AiError, aiErrors } from '../services/ai/ai-errors.js';
 import { continueChat, extractRecipe, extractRecipeFromPage } from '../services/ai/recipe-assistant.service.js';
 import { getAiModel, isAiConfigured, type ChatMessage } from '../services/ai/openrouter.service.js';
 import { createRecipe, getRecipeById, setRecipeTags, updateRecipe } from '../services/recipes.service.js';
-import { AI_CAPTURE_TAG, findOrCreateTags } from '../services/tags.service.js';
+import { findOrCreateTags } from '../services/tags.service.js';
 import { fetchPage, parseHtml } from '../services/parser-dispatch.service.js';
 import { extractPageText } from '../services/page-text.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
@@ -140,6 +140,7 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
     const recipe = await createRecipe(userId, {
       title: extracted.title,
       isFallback: false,
+      origin: 'AI_GENERATED',
       ingredients: extracted.ingredients,
       instructions: extracted.instructions,
       prepTime: extracted.prepTime,
@@ -148,9 +149,10 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
       notes: extracted.notes,
     });
 
-    // The model's own keywords, plus the marker that the model wrote this one.
-    const tags = await findOrCreateTags([...extracted.tags, AI_CAPTURE_TAG]);
-    await setRecipeTags(recipe.id, tags.map((t) => t.id));
+    if (extracted.tags.length > 0) {
+      const tags = await findOrCreateTags(extracted.tags);
+      await setRecipeTags(recipe.id, tags.map((t) => t.id));
+    }
 
     logger.info({ userId, recipeId: recipe.id }, 'Created recipe from AI chat');
     res.status(201).json({ recipeId: recipe.id });
@@ -204,6 +206,8 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
       title: extracted.title,
       sourceUrl: page.url,
       isFallback: false,
+      // Whatever read this page before, the model is what wrote what is here now.
+      origin: 'AI_PARSED' as const,
       ingredients: extracted.ingredients,
       instructions: extracted.instructions,
       prepTime: extracted.prepTime,
@@ -218,13 +222,14 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
       ? await updateRecipe(target.id, recipeData)
       : await createRecipe(userId, recipeData);
 
-    // The model's own keywords, falling back to whatever a site parser found,
-    // and the marker that the model is what read this page.
+    // The model's own keywords, falling back to whatever a site parser found.
     const tagNames = extracted.tags.length > 0 ? extracted.tags : (parsed.tags ?? []);
-    const tags = await findOrCreateTags([...tagNames, AI_CAPTURE_TAG]);
-    // Tags the user already put on the recipe are theirs to keep.
-    const tagIds = new Set([...(target?.tags.map((t) => t.id) ?? []), ...tags.map((t) => t.id)]);
-    await setRecipeTags(recipe.id, [...tagIds]);
+    if (tagNames.length > 0) {
+      const tags = await findOrCreateTags(tagNames);
+      // Tags the user already put on the recipe are theirs to keep.
+      const tagIds = new Set([...(target?.tags.map((t) => t.id) ?? []), ...tags.map((t) => t.id)]);
+      await setRecipeTags(recipe.id, [...tagIds]);
+    }
 
     // A replaced recipe already has the images its capture downloaded.
     if (!target || target.images.length === 0) {

@@ -38,6 +38,9 @@ model Recipe {
   title         String
   sourceUrl     String?
   isFallback    Boolean  @default(false)
+  // How this recipe got here — drives the badge on the recipe page and the
+  // origin filter. Null on recipes captured before the field existed.
+  origin        RecipeOrigin?
   ingredients   Json
   instructions  Json
   prepTime      Int?
@@ -181,6 +184,19 @@ model PasswordResetLink {
   expiresAt DateTime
 
   @@index([userId])
+}
+
+// MANUAL        typed in from a blank recipe
+// PARSED        a site parser (or the JSON-LD/fallback reader) captured it
+// PARSED_EDITED parsed, then changed by hand before a save
+// AI_PARSED     the assistant read the page
+// AI_GENERATED  the assistant wrote it in a chat
+enum RecipeOrigin {
+  MANUAL
+  PARSED
+  PARSED_EDITED
+  AI_PARSED
+  AI_GENERATED
 }
 
 enum Role {

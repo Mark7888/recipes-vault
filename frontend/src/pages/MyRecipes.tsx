@@ -5,6 +5,7 @@ import { useRecipes, useRecipeSites } from '../hooks/useRecipes';
 import { RecipeCard } from '../components/recipe/RecipeCard';
 import { TagInput } from '../components/recipe/TagInput';
 import { ChevronDownIcon } from '../components/ui/icons';
+import { RECIPE_ORIGIN_FILTERS, RECIPE_ORIGIN_FILTER_LABELS, type RecipeOriginFilter } from '../utils/origin';
 import type { RecipeSort } from '../api/recipes.api';
 
 const SORT_LABELS: Record<RecipeSort, string> = {
@@ -19,6 +20,7 @@ export default function MyRecipes() {
   const [search, setSearch] = useState('');
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterSite, setFilterSite] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState<RecipeOriginFilter | ''>('');
   const [sort, setSort] = useState<RecipeSort>('newest');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const {
@@ -31,6 +33,7 @@ export default function MyRecipes() {
     search: search || undefined,
     tags: filterTags.length ? filterTags : undefined,
     site: filterSite || undefined,
+    origin: filterOrigin || undefined,
     sort,
   });
   const { data: sites } = useRecipeSites();
@@ -52,8 +55,8 @@ export default function MyRecipes() {
     return () => observer.disconnect();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-  const extraFilterCount = filterSite ? 1 : 0;
-  const hasAnyFilter = Boolean(search) || filterTags.length > 0 || Boolean(filterSite);
+  const extraFilterCount = (filterSite ? 1 : 0) + (filterOrigin ? 1 : 0);
+  const hasAnyFilter = Boolean(search) || filterTags.length > 0 || extraFilterCount > 0;
 
   return (
     <Box py={4}>
@@ -107,8 +110,23 @@ export default function MyRecipes() {
                 <NativeSelect.Indicator />
               </NativeSelect.Root>
             </Field.Root>
-            {filterSite && (
-              <Button size="sm" variant="ghost" onClick={() => setFilterSite('')}>
+            <Field.Root w="full" maxW={{ md: '300px' }}>
+              <Field.Label fontSize="sm">Origin</Field.Label>
+              <NativeSelect.Root size="sm" bg="bg.panel">
+                <NativeSelect.Field
+                  value={filterOrigin}
+                  onChange={(e) => setFilterOrigin(e.target.value as RecipeOriginFilter | '')}
+                >
+                  <option value="">Any origin</option>
+                  {RECIPE_ORIGIN_FILTERS.map((opt) => (
+                    <option key={opt} value={opt}>{RECIPE_ORIGIN_FILTER_LABELS[opt]}</option>
+                  ))}
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+            </Field.Root>
+            {extraFilterCount > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => { setFilterSite(''); setFilterOrigin(''); }}>
                 Clear
               </Button>
             )}

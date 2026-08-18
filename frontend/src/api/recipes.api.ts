@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { Recipe } from '../types';
+import type { RecipeOriginFilter } from '../utils/origin';
 
 export type RecipeSort = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'prep-time';
 
@@ -7,9 +8,15 @@ export interface RecipeListParams {
   search?: string;
   tags?: string[];
   site?: string;
+  origin?: RecipeOriginFilter;
   sort?: RecipeSort;
   limit?: number;
   offset?: number;
+}
+
+export interface RecipeUpdate extends Partial<Recipe> {
+  /** Tells the server the user changed the draft, so a parse becomes an edited parse. */
+  modified?: boolean;
 }
 
 export interface CaptureResult {
@@ -31,6 +38,7 @@ export const recipesApi = {
         search: params?.search,
         'tags[]': params?.tags,
         site: params?.site,
+        origin: params?.origin,
         sort: params?.sort,
         limit: params?.limit,
         offset: params?.offset,
@@ -46,7 +54,7 @@ export const recipesApi = {
   create: (title?: string) =>
     apiClient.post<Recipe>('/recipes', { title }).then(r => r.data),
 
-  patch: (id: string, data: Partial<Recipe>) =>
+  patch: (id: string, data: RecipeUpdate) =>
     apiClient.patch<Recipe>(`/recipes/${id}`, data).then(r => r.data),
 
   delete: (id: string) =>

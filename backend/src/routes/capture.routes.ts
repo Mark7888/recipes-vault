@@ -27,6 +27,7 @@ export async function captureAndCreateRecipe(url: string, userId: string) {
     title: parsed.title,
     sourceUrl: parsed.sourceUrl,
     isFallback: parsed.isFallback,
+    origin: 'PARSED',
     ingredients: parsed.ingredients,
     instructions: parsed.instructions,
     prepTime: parsed.prepTime,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, RecipeOrigin } from '@prisma/client';
 import type { Ingredient, Instruction } from '../types/index.js';
 import { copyImageFile } from './image-storage.service.js';
 
@@ -8,6 +8,7 @@ interface RecipeInput {
   title: string;
   sourceUrl?: string;
   isFallback?: boolean;
+  origin?: RecipeOrigin;
   ingredients: Ingredient[];
   instructions: Instruction[];
   prepTime?: number;
@@ -47,6 +48,7 @@ export async function duplicateRecipe(sourceId: string, ownerId: string) {
         title: `${source.title} (copy)`,
         sourceUrl: source.sourceUrl,
         isFallback: source.isFallback,
+        origin: source.origin,
         ingredients: source.ingredients as object[],
         instructions: source.instructions as object[],
         prepTime: source.prepTime,
@@ -102,17 +104,21 @@ const SORT_ORDER_BY: Record<RecipeSort, Prisma.RecipeOrderByWithRelationInput> =
   'prep-time': { prepTime: 'asc' },
 };
 
+/** 'UNKNOWN' selects the recipes captured before origins were recorded. */
+export type RecipeOriginFilter = RecipeOrigin | 'UNKNOWN';
+
 interface GetRecipesParams {
   search?: string;
   tags?: string[];
   site?: string;
+  origin?: RecipeOriginFilter;
   sort?: RecipeSort;
   limit?: number;
   offset?: number;
 }
 
 export async function getRecipesForUser(ownerId: string, params: GetRecipesParams = {}) {
-  const { search, tags, site, sort = 'newest', limit = 24, offset = 0 } = params;
+  const { search, tags, site, origin, sort = 'newest', limit = 24, offset = 0 } = params;
   const where = {
     ownerId,
     ...(search && { title: { contains: search, mode: 'insensitive' as const } }),
@@ -120,6 +126,7 @@ export async function getRecipesForUser(ownerId: string, params: GetRecipesParam
     // sourceUrl hostnames are normalized (www. stripped) before being offered
     // as filter options, so match either form at the DB level.
     ...(site && { OR: [{ sourceUrl: { contains: `://${site}` } }, { sourceUrl: { contains: `://www.${site}` } }] }),
+    ...(origin && { origin: origin === 'UNKNOWN' ? null : origin }),
   };
   const [items, total] = await Promise.all([
     prisma.recipe.findMany({
