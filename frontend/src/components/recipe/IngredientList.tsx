@@ -1,12 +1,15 @@
 import { VStack, HStack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
-import type { Ingredient } from '../../types';
+import type { IngredientEntry } from '../../types';
+import { isSection } from '../../utils/sections';
 import { Checkbox } from '../ui/Checkbox';
 
 interface Props {
-  ingredients: Ingredient[];
+  ingredients: IngredientEntry[];
   // Optional controlled mode (RecipeView uses the checked state as "I have
   // this at home" for the shopping list); uncontrolled otherwise.
+  // Indexes are into the entry list, section headings included, so they stay
+  // valid however the recipe is grouped.
   checked?: Set<number>;
   onToggle?: (index: number) => void;
 }
@@ -31,17 +34,31 @@ export function IngredientList({ ingredients, checked: checkedProp, onToggle }: 
 
   return (
     <VStack align="start" gap={2}>
-      {ingredients.map((ing, i) => (
-        <HStack key={i} gap={3} cursor="pointer" onClick={() => toggle(i)}>
-          <Checkbox checked={checked.has(i)} onToggle={() => toggle(i)} size={16} />
+      {ingredients.map((entry, i) =>
+        isSection(entry) ? (
           <Text
-            textDecoration={checked.has(i) ? 'line-through' : 'none'}
-            color={checked.has(i) ? 'fg.subtle' : 'fg'}
+            key={i}
+            fontWeight="semibold"
+            fontSize="sm"
+            textTransform="uppercase"
+            letterSpacing="wide"
+            color="fg.muted"
+            pt={i === 0 ? 0 : 2}
           >
-            {[ing.amount, ing.unit, ing.name].filter(Boolean).join(' ')}
+            {entry.title}
           </Text>
-        </HStack>
-      ))}
+        ) : (
+          <HStack key={i} gap={3} cursor="pointer" onClick={() => toggle(i)}>
+            <Checkbox checked={checked.has(i)} onToggle={() => toggle(i)} size={16} />
+            <Text
+              textDecoration={checked.has(i) ? 'line-through' : 'none'}
+              color={checked.has(i) ? 'fg.subtle' : 'fg'}
+            >
+              {[entry.amount, entry.unit, entry.name].filter(Boolean).join(' ')}
+            </Text>
+          </HStack>
+        )
+      )}
     </VStack>
   );
 }

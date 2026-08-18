@@ -15,6 +15,21 @@ export interface Instruction {
   text: string;
 }
 
+/**
+ * A heading in the middle of an ingredient or instruction list ("For the bun",
+ * "For the patty"). Sections sit in the same array as the rows they head, so
+ * their position decides where the heading shows and dragging a row past one
+ * moves it into the other section. Rows saved before sections existed have no
+ * `type` at all, which is why only the section carries the discriminator.
+ */
+export interface RecipeSection {
+  type: 'section';
+  title: string;
+}
+
+export type IngredientEntry = Ingredient | RecipeSection;
+export type InstructionEntry = Instruction | RecipeSection;
+
 export interface Image {
   id: string;
   recipeId: string;
@@ -36,8 +51,8 @@ export interface Recipe {
   sourceUrl?: string;
   isFallback: boolean;
   origin?: RecipeOrigin;
-  ingredients: Ingredient[];
-  instructions: Instruction[];
+  ingredients: IngredientEntry[];
+  instructions: InstructionEntry[];
   prepTime?: number;
   cookTime?: number;
   servings?: number;

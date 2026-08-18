@@ -6,19 +6,21 @@ import { createRecipe, setRecipeTags } from '../services/recipes.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
-import type { AuthenticatedRequest } from '../types/index.js';
+import { isSection } from '../utils/sections.js';
+import type { AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
 
 const router = Router();
 
 /**
  * A capture that produced no ingredients or no steps is one the parsers could
  * not really read. Both capture entry points report it so the UI can offer the
- * AI a go at the same page.
+ * AI a go at the same page. Section headings do not count as content — a list
+ * of nothing but headings is still an empty list.
  */
 export function isCaptureIncomplete(recipe: { ingredients: unknown; instructions: unknown }): boolean {
-  const ingredients = recipe.ingredients as unknown[];
-  const instructions = recipe.instructions as unknown[];
-  return ingredients.length === 0 || instructions.length === 0;
+  const ingredients = recipe.ingredients as IngredientEntry[];
+  const instructions = recipe.instructions as InstructionEntry[];
+  return !ingredients.some((entry) => !isSection(entry)) || !instructions.some((entry) => !isSection(entry));
 }
 
 export async function captureAndCreateRecipe(url: string, userId: string) {

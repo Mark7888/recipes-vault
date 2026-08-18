@@ -11,6 +11,9 @@ import {
 } from '@dnd-kit/sortable';
 import type { Image as RecipeImage } from '../../types';
 import { useUploadRecipeImage, useDeleteRecipeImage, useSetCoverImage, useReorderImages } from '../../hooks/useRecipes';
+import { useClipboardImage } from '../../hooks/useClipboardImage';
+import { readClipboardImage } from '../../utils/clipboard';
+import { ClipboardIcon } from '../ui/icons';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SortableImageItem } from './SortableImageItem';
 import { ImageLightbox } from './ImageLightbox';
@@ -29,6 +32,9 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
   const reorderMutation = useReorderImages();
   const [imageToDelete, setImageToDelete] = useState<RecipeImage | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [clipboardError, setClipboardError] = useState('');
+  const [pastingFromClipboard, setPastingFromClipboard] = useState(false);
+  const clipboardOffered = useClipboardImage();
 
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -44,8 +50,24 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setClipboardError('');
     await uploadMutation.mutateAsync({ id: recipeId, file });
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handlePasteFromClipboard = async () => {
+    setClipboardError('');
+    setPastingFromClipboard(true);
+    try {
+      const file = await readClipboardImage();
+      if (!file) { setClipboardError('There is no image on the clipboard.'); return; }
+      await uploadMutation.mutateAsync({ id: recipeId, file });
+    } catch {
+      // Denied permission, or a browser that will not hand the clipboard over.
+      setClipboardError('Could not read the clipboard. Allow clipboard access, or use Upload Image.');
+    } finally {
+      setPastingFromClipboard(false);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -60,18 +82,32 @@ export function ImagePicker({ recipeId, images, coverImageId }: Props) {
 
   return (
     <VStack align="start" gap={4}>
-      <HStack>
-        <Button
-          size="sm"
-          colorPalette="green"
-          variant="outline"
-          onClick={() => fileRef.current?.click()}
-          loading={uploadMutation.isPending}
-        >
-          Upload Image
-        </Button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFileChange} />
-      </HStack>
+      <VStack align="start" gap={2}>
+        <HStack flexWrap="wrap" gap={2}>
+          <Button
+            size="sm"
+            colorPalette="green"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            loading={uploadMutation.isPending && !pastingFromClipboard}
+          >
+            Upload Image
+          </Button>
+          {clipboardOffered && (
+            <Button
+              size="sm"
+              colorPalette="green"
+              variant="outline"
+              onClick={handlePasteFromClipboard}
+              loading={pastingFromClipboard}
+            >
+              <ClipboardIcon size={14} /> From Clipboard
+            </Button>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFileChange} />
+        </HStack>
+        {clipboardError && <Text color="fg.error" fontSize="sm">{clipboardError}</Text>}
+      </VStack>
       {images.length > 0 ? (
         <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={images.map((img) => img.id)} strategy={rectSortingStrategy}>

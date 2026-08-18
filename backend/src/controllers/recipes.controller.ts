@@ -29,10 +29,22 @@ const ORIGIN_OPTIONS = ['MANUAL', 'PARSED', 'PARSED_EDITED', 'AI_PARSED', 'AI_GE
  * client cannot reach past the form into columns it has no business writing —
  * ownerId, the share token, or the origin the server records itself.
  */
+// A section heading can sit anywhere in either list; rows saved before
+// sections existed carry no `type`, so only the heading is discriminated.
+const sectionSchema = z.object({ type: z.literal('section'), title: z.string() });
+const ingredientEntrySchema = z.union([
+  sectionSchema,
+  z.object({ amount: z.string(), unit: z.string(), name: z.string() }),
+]);
+const instructionEntrySchema = z.union([
+  sectionSchema,
+  z.object({ step: z.number().int(), text: z.string() }),
+]);
+
 const updateSchema = z.object({
   title: z.string().optional(),
-  ingredients: z.array(z.object({ amount: z.string(), unit: z.string(), name: z.string() })).optional(),
-  instructions: z.array(z.object({ step: z.number().int(), text: z.string() })).optional(),
+  ingredients: z.array(ingredientEntrySchema).optional(),
+  instructions: z.array(instructionEntrySchema).optional(),
   prepTime: z.number().int().nonnegative().optional(),
   cookTime: z.number().int().nonnegative().optional(),
   servings: z.number().int().nonnegative().optional(),
