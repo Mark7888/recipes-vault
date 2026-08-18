@@ -7,11 +7,13 @@ import {
   updateRecipe,
   deleteRecipe,
   duplicateRecipe,
+  ensureCoverImage,
   setRecipeTags,
   isRecipeAccessibleByUser,
   getRecipeSitesForUser,
   getOrCreateShareToken,
   getRecipeByShareToken,
+  type RecipeOriginFilter,
 } from '../services/recipes.service.js';
 import { getCollectionIdsContainingRecipe } from '../services/collections.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
@@ -20,6 +22,24 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 const SORT_OPTIONS = ['newest', 'oldest', 'title-asc', 'title-desc', 'prep-time'] as const;
+const ORIGIN_OPTIONS = ['MANUAL', 'PARSED', 'PARSED_EDITED', 'AI_PARSED', 'AI_GENERATED', 'UNKNOWN'] as const;
+
+/**
+ * The editable half of a recipe. Spelled out rather than passed through, so a
+ * client cannot reach past the form into columns it has no business writing —
+ * ownerId, the share token, or the origin the server records itself.
+ */
+const updateSchema = z.object({
+  title: z.string().optional(),
+  ingredients: z.array(z.object({ amount: z.string(), unit: z.string(), name: z.string() })).optional(),
+  instructions: z.array(z.object({ step: z.number().int(), text: z.string() })).optional(),
+  prepTime: z.number().int().nonnegative().optional(),
+  cookTime: z.number().int().nonnegative().optional(),
+  servings: z.number().int().nonnegative().optional(),
+  notes: z.string().nullable().optional(),
+  /** The editor's signal that the user changed the draft before saving. */
+  modified: z.boolean().optional(),
+});
 
 export async function listRecipes(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
@@ -27,11 +47,13 @@ export async function listRecipes(req: Request, res: Response): Promise<void> {
   const tags = req.query['tags[]'] as string | string[] | undefined;
   const tagArray = tags ? (Array.isArray(tags) ? tags : [tags]) : undefined;
   const site = req.query.site as string | undefined;
+  const originParam = req.query.origin as string | undefined;
+  const origin = ORIGIN_OPTIONS.includes(originParam as typeof ORIGIN_OPTIONS[number]) ? (originParam as RecipeOriginFilter) : undefined;
   const sortParam = req.query.sort as string | undefined;
   const sort = SORT_OPTIONS.includes(sortParam as typeof SORT_OPTIONS[number]) ? (sortParam as typeof SORT_OPTIONS[number]) : 'newest';
   const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 100);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
-  const result = await getRecipesForUser(userId, { search, tags: tagArray, site, sort, limit, offset });
+  const result = await getRecipesForUser(userId, { search, tags: tagArray, site, origin, sort, limit, offset });
   res.json(result);
 }
 
@@ -47,6 +69,7 @@ export async function postRecipe(req: Request, res: Response): Promise<void> {
     const { title } = z.object({ title: z.string().optional() }).parse(req.body ?? {});
     const recipe = await createRecipe(userId, {
       title: title?.trim() || 'Untitled Recipe',
+      origin: 'MANUAL',
       ingredients: [],
       instructions: [],
     });
@@ -72,8 +95,19 @@ export async function patchRecipe(req: Request, res: Response): Promise<void> {
   const recipe = await getRecipeById(id);
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
-  const updated = await updateRecipe(recipe.id, req.body as Parameters<typeof updateRecipe>[1]);
-  res.json(updated);
+  try {
+    const { modified, ...data } = updateSchema.parse(req.body ?? {});
+    // Before the update, so the response already carries the cover it settled on.
+    await ensureCoverImage(recipe.id);
+    // A parse the user reworked before saving is no longer just a parse. The
+    // AI origins stand as they are: what matters about them is who wrote the
+    // draft, and an edit does not change that.
+    const origin = modified && recipe.origin === 'PARSED' ? ('PARSED_EDITED' as const) : undefined;
+    const updated = await updateRecipe(recipe.id, { ...data, ...(origin && { origin }) });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 }
 
 export async function removeRecipe(req: Request, res: Response): Promise<void> {

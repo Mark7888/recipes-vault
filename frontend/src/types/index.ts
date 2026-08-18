@@ -27,11 +27,15 @@ export interface Tag {
   name: string;
 }
 
+/** How a recipe got here. Absent on recipes captured before it was recorded. */
+export type RecipeOrigin = 'MANUAL' | 'PARSED' | 'PARSED_EDITED' | 'AI_PARSED' | 'AI_GENERATED';
+
 export interface Recipe {
   id: string;
   title: string;
   sourceUrl?: string;
   isFallback: boolean;
+  origin?: RecipeOrigin;
   ingredients: Ingredient[];
   instructions: Instruction[];
   prepTime?: number;

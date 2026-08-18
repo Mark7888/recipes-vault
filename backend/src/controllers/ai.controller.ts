@@ -140,6 +140,7 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
     const recipe = await createRecipe(userId, {
       title: extracted.title,
       isFallback: false,
+      origin: 'AI_GENERATED',
       ingredients: extracted.ingredients,
       instructions: extracted.instructions,
       prepTime: extracted.prepTime,
@@ -205,6 +206,8 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
       title: extracted.title,
       sourceUrl: page.url,
       isFallback: false,
+      // Whatever read this page before, the model is what wrote what is here now.
+      origin: 'AI_PARSED' as const,
       ingredients: extracted.ingredients,
       instructions: extracted.instructions,
       prepTime: extracted.prepTime,

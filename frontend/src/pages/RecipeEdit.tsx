@@ -229,6 +229,8 @@ export default function RecipeEdit() {
           cookTime: cookTime ? parseInt(cookTime) : undefined,
           servings: servings ? parseInt(servings) : undefined,
           notes: notes || undefined,
+          // A parse the user reworked before saving is recorded as such.
+          modified: dirty,
         },
       });
       await setRecipeTags.mutateAsync({ id: recipe.id, tags });
