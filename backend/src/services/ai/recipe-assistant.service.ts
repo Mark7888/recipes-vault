@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { logger } from '../../lib/logger.js';
 import { aiErrors } from './ai-errors.js';
 import { requestCompletion, type ChatMessage } from './openrouter.service.js';
-import type { Ingredient, Instruction } from '../../types/index.js';
+import { isSection, renumberSteps } from '../../utils/sections.js';
+import type { IngredientEntry, InstructionEntry } from '../../types/index.js';
 
 /**
  * The recipe-specific layer on top of the provider client: the prompts, the
@@ -23,6 +24,10 @@ How to answer:
   the recipe title on its own first line, then an "Ingredients:" list with one
   item per line including amounts, then a "Steps:" list with numbered steps,
   and finally prep time, cook time and servings when you know them.
+- When a recipe is really made of parts (a burger's bun, patty and sauce; a cake's
+  sponge and frosting), group both lists under short section headings written on
+  their own line and ending with a colon, e.g. "For the bun:". Only do this when
+  the recipe genuinely has parts — a simple recipe stays one flat list.
 - Use plain text. Simple dashes and numbers are fine; do not use markdown tables or headings.
 - Never invent a source or claim a recipe comes from a specific website or cookbook.
 - If a screenshot is unreadable or is not a recipe, say so plainly instead of guessing.
@@ -44,6 +49,10 @@ Rules:
   "salt to taste" -> amount "", unit "", name "salt to taste".
 - Keep ingredient and step wording in the language the conversation used.
 - Steps are plain sentences without their own numbering prefix.
+- When the recipe is grouped into parts ("For the bun", "For the sauce"), keep the
+  grouping: put an entry with type "section" in front of the ingredients or steps
+  it heads, with the heading text in its name/text field. Never invent groupings a
+  recipe does not have, and never leave a section with nothing under it.
 - Times are whole minutes. Use null when a time or serving count was never stated —
   never guess.
 - notes: anything useful that is not an ingredient or a step (tips, storage,
@@ -69,6 +78,11 @@ Rules:
   "salt to taste" -> amount "", unit "", name "salt to taste".
 - Steps are plain sentences without their own numbering prefix. Keep them in
   page order and do not merge or summarize them.
+- When the page groups its ingredients or steps into parts ("For the dough",
+  "For the filling"), keep that grouping: put an entry with type "section" in
+  front of the rows it heads, with the heading text in its name/text field. Do
+  not invent groupings the page does not have, and never leave a section with
+  nothing under it.
 - Times are whole minutes. Use null when a time or serving count is not stated —
   never guess.
 - notes: anything useful that is not an ingredient or a step (tips, storage,
@@ -91,21 +105,39 @@ const RECIPE_RESPONSE_FORMAT = {
         title: { type: 'string', description: 'Short recipe title, no quotes' },
         ingredients: {
           type: 'array',
+          description: 'Ingredients in list order, with "section" entries where the recipe groups them',
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['amount', 'unit', 'name'],
+            required: ['type', 'amount', 'unit', 'name'],
             properties: {
-              amount: { type: 'string', description: 'Numeric quantity as text, or "" when there is none' },
-              unit: { type: 'string', description: 'Unit such as g, ml, tbsp, or "" when there is none' },
-              name: { type: 'string' },
+              type: {
+                type: 'string',
+                enum: ['ingredient', 'section'],
+                description: 'A "section" is a heading for the ingredients that follow it, e.g. "For the bun"',
+              },
+              amount: { type: 'string', description: 'Numeric quantity as text, or "" when there is none or on a section' },
+              unit: { type: 'string', description: 'Unit such as g, ml, tbsp, or "" when there is none or on a section' },
+              name: { type: 'string', description: 'The ingredient name, or the heading text on a section' },
             },
           },
         },
         steps: {
           type: 'array',
-          items: { type: 'string' },
-          description: 'Ordered preparation steps, each a plain sentence',
+          description: 'Preparation steps in order, with "section" entries where the recipe groups them',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['type', 'text'],
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['step', 'section'],
+                description: 'A "section" is a heading for the steps that follow it, e.g. "For the sauce"',
+              },
+              text: { type: 'string', description: 'The step as a plain sentence, or the heading text on a section' },
+            },
+          },
         },
         prepTimeMinutes: { type: ['integer', 'null'] },
         cookTimeMinutes: { type: ['integer', 'null'] },
@@ -126,13 +158,28 @@ const extractionSchema = z.object({
   ingredients: z
     .array(
       z.object({
+        type: z.string().optional(),
         amount: z.union([z.string(), z.number()]).optional(),
         unit: z.string().optional(),
         name: z.string().optional(),
+        // Models sometimes name the heading field after what it is instead of
+        // reusing `name`; both are accepted.
+        title: z.string().optional(),
       })
     )
     .optional(),
-  steps: z.array(z.union([z.string(), z.object({ text: z.string().optional() })])).optional(),
+  steps: z
+    .array(
+      z.union([
+        z.string(),
+        z.object({
+          type: z.string().optional(),
+          text: z.string().optional(),
+          title: z.string().optional(),
+        }),
+      ])
+    )
+    .optional(),
   prepTimeMinutes: nullableInt,
   cookTimeMinutes: nullableInt,
   servings: nullableInt,
@@ -142,8 +189,8 @@ const extractionSchema = z.object({
 
 export interface ExtractedRecipe {
   title: string;
-  ingredients: Ingredient[];
-  instructions: Instruction[];
+  ingredients: IngredientEntry[];
+  instructions: InstructionEntry[];
   prepTime?: number;
   cookTime?: number;
   servings?: number;
@@ -178,6 +225,15 @@ function parseJsonObject(raw: string): unknown {
     }
     return null;
   }
+}
+
+/**
+ * Drops headings that head nothing — the last entry in a list, or one followed
+ * straight by another heading. A model that groups half a recipe leaves those
+ * behind, and they would show up in the editor as stray empty titles.
+ */
+function dropEmptySections<T extends IngredientEntry | InstructionEntry>(entries: T[]): T[] {
+  return entries.filter((entry, index) => !isSection(entry) || (entries[index + 1] !== undefined && !isSection(entries[index + 1])));
 }
 
 /** One assistant turn in the chat. */
@@ -221,22 +277,46 @@ async function runExtraction(system: string, messages: ChatMessage[]): Promise<E
   const data = parsed.data;
   const title = (data.title ?? '').trim();
 
-  const ingredients: Ingredient[] = (data.ingredients ?? [])
-    .map((ing) => ({
-      amount: String(ing.amount ?? '').trim(),
-      unit: (ing.unit ?? '').trim(),
-      name: (ing.name ?? '').trim(),
-    }))
-    .filter((ing) => ing.name || ing.amount);
+  const ingredients = dropEmptySections(
+    (data.ingredients ?? [])
+      .map((ing): IngredientEntry | null => {
+        if (ing.type === 'section') {
+          const heading = (ing.title ?? ing.name ?? '').trim();
+          return heading ? { type: 'section', title: heading } : null;
+        }
+        const entry = {
+          amount: String(ing.amount ?? '').trim(),
+          unit: (ing.unit ?? '').trim(),
+          name: (ing.name ?? '').trim(),
+        };
+        return entry.name || entry.amount ? entry : null;
+      })
+      .filter((entry): entry is IngredientEntry => entry !== null)
+  );
 
-  const instructions: Instruction[] = (data.steps ?? [])
-    .map((step) => (typeof step === 'string' ? step : (step.text ?? '')).trim())
-    .filter((text) => text.length > 0)
-    .map((text, index) => ({ step: index + 1, text }));
+  const instructions = renumberSteps(
+    dropEmptySections(
+      (data.steps ?? [])
+        .map((step): InstructionEntry | null => {
+          if (typeof step === 'string') {
+            const text = step.trim();
+            return text ? { step: 0, text } : null;
+          }
+          if (step.type === 'section') {
+            const heading = (step.title ?? step.text ?? '').trim();
+            return heading ? { type: 'section', title: heading } : null;
+          }
+          const text = (step.text ?? '').trim();
+          return text ? { step: 0, text } : null;
+        })
+        .filter((entry): entry is InstructionEntry => entry !== null)
+    )
+  );
 
   // The model was told to answer NO_RECIPE rather than invent one; an empty
-  // result means the same thing.
-  if (!title || title === 'NO_RECIPE' || (ingredients.length === 0 && instructions.length === 0)) {
+  // result means the same thing, and headings on their own are not a recipe.
+  const hasContent = [...ingredients, ...instructions].some((entry) => !isSection(entry));
+  if (!title || title === 'NO_RECIPE' || !hasContent) {
     throw aiErrors.noRecipe();
   }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import type { Prisma, RecipeOrigin } from '@prisma/client';
-import type { Ingredient, Instruction } from '../types/index.js';
+import type { IngredientEntry, InstructionEntry } from '../types/index.js';
 import { copyImageFile } from './image-storage.service.js';
 
 interface RecipeInput {
@@ -9,8 +9,8 @@ interface RecipeInput {
   sourceUrl?: string;
   isFallback?: boolean;
   origin?: RecipeOrigin;
-  ingredients: Ingredient[];
-  instructions: Instruction[];
+  ingredients: IngredientEntry[];
+  instructions: InstructionEntry[];
   prepTime?: number;
   cookTime?: number;
   servings?: number;

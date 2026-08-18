@@ -7,6 +7,8 @@ import { useRecipe, useDeleteRecipe, useDuplicateRecipe } from '../hooks/useReci
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { IngredientList } from '../components/recipe/IngredientList';
+import { isSection } from '../utils/sections';
+import type { Ingredient } from '../types';
 import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
 import { AddToCollectionPanel } from '../components/recipe/AddToCollectionPanel';
@@ -174,8 +176,11 @@ export default function RecipeView() {
         <Box w="full" borderTopWidth="1px" pt={6}>
           <Heading size="md" mb={4}>Ingredients</Heading>
           <IngredientList ingredients={recipe.ingredients} checked={haveAtHome} onToggle={toggleHaveAtHome} />
-          {recipe.ingredients.length > 0 && (() => {
-            const missing = recipe.ingredients.filter((_, i) => !haveAtHome.has(i));
+          {recipe.ingredients.some((entry) => !isSection(entry)) && (() => {
+            // Headings are not shopping, and never carry a check of their own.
+            const missing = recipe.ingredients.filter(
+              (entry, i): entry is Ingredient => !isSection(entry) && !haveAtHome.has(i)
+            );
             const handleAddToShoppingList = async () => {
               await addShoppingItems.mutateAsync(
                 missing.map((ing) => ({

@@ -1,8 +1,9 @@
 import { VStack, HStack, Box, Text } from '@chakra-ui/react';
-import type { Instruction } from '../../types';
+import type { InstructionEntry } from '../../types';
+import { isSection } from '../../utils/sections';
 
 interface Props {
-  instructions: Instruction[];
+  instructions: InstructionEntry[];
 }
 
 export function StepList({ instructions }: Props) {
@@ -12,26 +13,39 @@ export function StepList({ instructions }: Props) {
 
   return (
     <VStack align="start" gap={4}>
-      {instructions.map((inst) => (
-        <HStack key={inst.step} align="start" gap={3}>
-          <Box
-            minW="32px"
-            h="32px"
-            borderRadius="full"
-            bg="green.500"
-            color="white"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontWeight="bold"
+      {instructions.map((entry, i) =>
+        isSection(entry) ? (
+          <Text
+            key={i}
+            fontWeight="semibold"
             fontSize="sm"
-            flexShrink={0}
+            textTransform="uppercase"
+            letterSpacing="wide"
+            color="fg.muted"
           >
-            {inst.step}
-          </Box>
-          <Text mt={1}>{inst.text}</Text>
-        </HStack>
-      ))}
+            {entry.title}
+          </Text>
+        ) : (
+          <HStack key={i} align="start" gap={3}>
+            <Box
+              minW="32px"
+              h="32px"
+              borderRadius="full"
+              bg="green.500"
+              color="white"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              fontWeight="bold"
+              fontSize="sm"
+              flexShrink={0}
+            >
+              {entry.step}
+            </Box>
+            <Text mt={1}>{entry.text}</Text>
+          </HStack>
+        )
+      )}
     </VStack>
   );
 }

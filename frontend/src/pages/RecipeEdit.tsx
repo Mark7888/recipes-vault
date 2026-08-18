@@ -19,23 +19,23 @@ import { AiReparseDialog } from '../components/recipe/AiReparseDialog';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SortableStepItem } from '../components/recipe/SortableStepItem';
 import { SortableIngredientItem } from '../components/recipe/SortableIngredientItem';
+import { SortableSectionItem } from '../components/recipe/SortableSectionItem';
 import { getErrorMessage } from '../utils/errors';
-import type { Ingredient, Instruction } from '../types';
+import { isSection, renumberSteps } from '../utils/sections';
+import type { Ingredient, IngredientEntry, InstructionEntry } from '../types';
 
-interface EditableIngredient extends Ingredient {
-  id: string;
-}
-
-interface EditableInstruction extends Instruction {
-  id: string;
-}
+// Both lists hold their section headings inline, so a row is either a real
+// entry or a heading, and the id is what dnd-kit sorts on.
+type EditableIngredient = IngredientEntry & { id: string };
+type EditableInstruction = InstructionEntry & { id: string };
 
 const newId = () => crypto.randomUUID();
 
 /** Names what a capture failed to find, or null when it found both. */
-function describeMissing(recipe: { ingredients: unknown[]; instructions: unknown[] }): string | null {
-  const noIngredients = recipe.ingredients.length === 0;
-  const noSteps = recipe.instructions.length === 0;
+function describeMissing(recipe: { ingredients: IngredientEntry[]; instructions: InstructionEntry[] }): string | null {
+  // Headings alone are not content: a list of nothing but them is still empty.
+  const noIngredients = !recipe.ingredients.some((entry) => !isSection(entry));
+  const noSteps = !recipe.instructions.some((entry) => !isSection(entry));
   if (noIngredients && noSteps) return 'ingredients or steps';
   if (noIngredients) return 'ingredients';
   if (noSteps) return 'steps';
@@ -57,6 +57,22 @@ function splitIngredientString(raw: string): Ingredient {
   if (fusedUnit) return { amount, unit: fusedUnit, name: rest.join(' ') };
   if (rest.length >= 2) return { amount, unit: rest[0], name: rest.slice(1).join(' ') };
   return { amount, unit: '', name: rest[0] ?? '' };
+}
+
+/**
+ * Drops the blank rows the editor always keeps around, and with them the
+ * headings that end up heading nothing — an untitled section, or one left
+ * with no rows under it once the empties are gone.
+ */
+function cleanEntries<T extends EditableIngredient | EditableInstruction>(entries: T[]): T[] {
+  const kept = entries.filter((entry) =>
+    isSection(entry)
+      ? entry.title.trim().length > 0
+      : 'name' in entry
+        ? entry.name.trim().length > 0
+        : entry.text.trim().length > 0
+  );
+  return kept.filter((entry, index) => !isSection(entry) || (kept[index + 1] !== undefined && !isSection(kept[index + 1])));
 }
 
 export default function RecipeEdit() {
@@ -97,9 +113,9 @@ export default function RecipeEdit() {
       initializedRecipeId.current = recipe.id;
       justLoadedRef.current = true;
       setTitle(recipe.title);
-      const initialIngredients = recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }];
+      const initialIngredients: IngredientEntry[] = recipe.ingredients.length ? recipe.ingredients : [{ amount: '', unit: '', name: '' }];
       setIngredients(initialIngredients.map((ing) => ({ ...ing, id: newId() })));
-      const initialInstructions = recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }];
+      const initialInstructions: InstructionEntry[] = recipe.instructions.length ? recipe.instructions : [{ step: 1, text: '' }];
       setInstructions(initialInstructions.map((inst) => ({ ...inst, id: newId() })));
       setPrepTime(recipe.prepTime?.toString() || '');
       setCookTime(recipe.cookTime?.toString() || '');
@@ -146,21 +162,27 @@ export default function RecipeEdit() {
   };
 
   const addIngredient = () => setIngredients([...ingredients, { amount: '', unit: '', name: '', id: newId() }]);
+  const addIngredientSection = () => setIngredients([...ingredients, { type: 'section', title: '', id: newId() }]);
   const removeIngredient = (i: number) => setIngredients(ingredients.filter((_, idx) => idx !== i));
   const updateIngredient = (i: number, field: keyof Ingredient, value: string) => {
     const updated = [...ingredients];
-    updated[i] = { ...updated[i], [field]: value };
+    updated[i] = { ...updated[i], [field]: value } as EditableIngredient;
+    setIngredients(updated);
+  };
+  const updateIngredientSection = (i: number, title: string) => {
+    const updated = [...ingredients];
+    updated[i] = { type: 'section', title, id: updated[i].id };
     setIngredients(updated);
   };
   const splitIngredient = (i: number) => {
-    setIngredients(prev => {
-      const updated = [...prev];
-      updated[i] = { ...splitIngredientString(updated[i]?.name ?? ''), id: updated[i].id };
-      return updated;
-    });
+    setIngredients(prev => prev.map((entry, idx) => (
+      idx !== i || isSection(entry) ? entry : { ...splitIngredientString(entry.name ?? ''), id: entry.id }
+    )));
   };
   const splitAllIngredients = () => {
-    setIngredients(prev => prev.map(ing => ing.amount === '' ? { ...splitIngredientString(ing.name ?? ''), id: ing.id } : ing));
+    setIngredients(prev => prev.map(entry => (
+      !isSection(entry) && entry.amount === '' ? { ...splitIngredientString(entry.name ?? ''), id: entry.id } : entry
+    )));
   };
   const handleIngredientDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
@@ -187,14 +209,19 @@ export default function RecipeEdit() {
     );
   }
 
-  const addInstruction = () => setInstructions([...instructions, { step: instructions.length + 1, text: '', id: newId() }]);
+  const addInstruction = () => setInstructions(renumberSteps([...instructions, { step: 0, text: '', id: newId() }]));
+  const addInstructionSection = () => setInstructions([...instructions, { type: 'section', title: '', id: newId() }]);
   const removeInstruction = (i: number) => {
-    const filtered = instructions.filter((_, idx) => idx !== i).map((inst, idx) => ({ ...inst, step: idx + 1 }));
-    setInstructions(filtered);
+    setInstructions(renumberSteps(instructions.filter((_, idx) => idx !== i)));
   };
   const updateInstruction = (i: number, text: string) => {
     const updated = [...instructions];
-    updated[i] = { ...updated[i], text };
+    updated[i] = { ...updated[i], text } as EditableInstruction;
+    setInstructions(updated);
+  };
+  const updateInstructionSection = (i: number, title: string) => {
+    const updated = [...instructions];
+    updated[i] = { type: 'section', title, id: updated[i].id };
     setInstructions(updated);
   };
   const handleInstructionDragEnd = ({ active, over }: DragEndEvent) => {
@@ -202,7 +229,9 @@ export default function RecipeEdit() {
     setInstructions((prev) => {
       const oldIndex = prev.findIndex((inst) => inst.id === active.id);
       const newIndex = prev.findIndex((inst) => inst.id === over.id);
-      return arrayMove(prev, oldIndex, newIndex).map((inst, idx) => ({ ...inst, step: idx + 1 }));
+      // Steps are renumbered across headings: the recipe is still cooked top
+      // to bottom, whatever it is divided into.
+      return renumberSteps(arrayMove(prev, oldIndex, newIndex));
     });
   };
 
@@ -223,8 +252,12 @@ export default function RecipeEdit() {
         id: recipe.id,
         data: {
           title,
-          ingredients: ingredients.filter((i) => i.name.trim()).map(({ amount, unit, name }) => ({ amount, unit, name })),
-          instructions: instructions.filter((i) => i.text.trim()).map(({ step, text }) => ({ step, text })),
+          ingredients: cleanEntries(ingredients).map((entry) =>
+            isSection(entry) ? { type: 'section' as const, title: entry.title } : { amount: entry.amount, unit: entry.unit, name: entry.name }
+          ),
+          instructions: renumberSteps(cleanEntries(instructions)).map((entry) =>
+            isSection(entry) ? { type: 'section' as const, title: entry.title } : { step: entry.step, text: entry.text }
+          ),
           prepTime: prepTime ? parseInt(prepTime) : undefined,
           cookTime: cookTime ? parseInt(cookTime) : undefined,
           servings: servings ? parseInt(servings) : undefined,
@@ -306,11 +339,12 @@ export default function RecipeEdit() {
           <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
             <Heading size="sm">Ingredients</Heading>
             <HStack gap={2}>
-              {ingredients.some(ing => ing.amount === '' && ing.name?.includes(' ')) && (
+              {ingredients.some(entry => !isSection(entry) && entry.amount === '' && entry.name?.includes(' ')) && (
                 <Button size="xs" variant="outline" colorPalette="blue" onClick={splitAllIngredients} title="Split all unparsed ingredient strings into amount / unit / name">
                   Split all
                 </Button>
               )}
+              <Button size="xs" onClick={addIngredientSection} variant="outline" title="Add a heading, e.g. For the bun">+ Section</Button>
               <Button size="xs" onClick={addIngredient} colorPalette="green" variant="outline">+ Add</Button>
             </HStack>
           </HStack>
@@ -321,15 +355,26 @@ export default function RecipeEdit() {
           >
             <SortableContext items={ingredients.map((ing) => ing.id)} strategy={verticalListSortingStrategy}>
               <VStack gap={2}>
-                {ingredients.map((ing, i) => (
-                  <SortableIngredientItem
-                    key={ing.id}
-                    id={ing.id}
-                    ingredient={ing}
-                    onChange={(field, value) => updateIngredient(i, field, value)}
-                    onSplit={() => splitIngredient(i)}
-                    onRemove={() => removeIngredient(i)}
-                  />
+                {ingredients.map((entry, i) => (
+                  isSection(entry) ? (
+                    <SortableSectionItem
+                      key={entry.id}
+                      id={entry.id}
+                      title={entry.title}
+                      kind="ingredient"
+                      onChange={(value) => updateIngredientSection(i, value)}
+                      onRemove={() => removeIngredient(i)}
+                    />
+                  ) : (
+                    <SortableIngredientItem
+                      key={entry.id}
+                      id={entry.id}
+                      ingredient={entry}
+                      onChange={(field, value) => updateIngredient(i, field, value)}
+                      onSplit={() => splitIngredient(i)}
+                      onRemove={() => removeIngredient(i)}
+                    />
+                  )
                 ))}
               </VStack>
             </SortableContext>
@@ -337,9 +382,12 @@ export default function RecipeEdit() {
         </Box>
 
         <Box w="full" borderTopWidth="1px" pt={4}>
-          <HStack justify="space-between" mb={3}>
+          <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
             <Heading size="sm">Instructions</Heading>
-            <Button size="xs" onClick={addInstruction} colorPalette="green" variant="outline">+ Add Step</Button>
+            <HStack gap={2}>
+              <Button size="xs" onClick={addInstructionSection} variant="outline" title="Add a heading, e.g. For the patty">+ Section</Button>
+              <Button size="xs" onClick={addInstruction} colorPalette="green" variant="outline">+ Add Step</Button>
+            </HStack>
           </HStack>
           <DndContext
             sensors={dndSensors}
@@ -348,14 +396,25 @@ export default function RecipeEdit() {
           >
             <SortableContext items={instructions.map((inst) => inst.id)} strategy={verticalListSortingStrategy}>
               <VStack gap={3}>
-                {instructions.map((inst, i) => (
-                  <SortableStepItem
-                    key={inst.id}
-                    id={inst.id}
-                    instruction={inst}
-                    onChange={(text) => updateInstruction(i, text)}
-                    onRemove={() => removeInstruction(i)}
-                  />
+                {instructions.map((entry, i) => (
+                  isSection(entry) ? (
+                    <SortableSectionItem
+                      key={entry.id}
+                      id={entry.id}
+                      title={entry.title}
+                      kind="step"
+                      onChange={(value) => updateInstructionSection(i, value)}
+                      onRemove={() => removeInstruction(i)}
+                    />
+                  ) : (
+                    <SortableStepItem
+                      key={entry.id}
+                      id={entry.id}
+                      instruction={entry}
+                      onChange={(text) => updateInstruction(i, text)}
+                      onRemove={() => removeInstruction(i)}
+                    />
+                  )
                 ))}
               </VStack>
             </SortableContext>
