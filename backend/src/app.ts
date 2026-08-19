@@ -15,6 +15,8 @@ import shoppingListRoutes from './routes/shopping-list.routes.js';
 import captureRoutes, { captureAndCreateRecipe, isCaptureIncomplete } from './routes/capture.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import { verifyRefreshToken } from './services/auth.service.js';
+import { getRecipeByShareToken } from './services/recipes.service.js';
+import { appPreview, sendAppHtml, sharedRecipePreview } from './services/link-preview.service.js';
 import { prisma } from './lib/prisma.js';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -50,6 +52,9 @@ export function createApp() {
   // the domain pattern below and be treated as recipe URLs to capture.
   const publicDir = path.join(__dirname, '..', 'public');
   app.use(express.static(publicDir, {
+    // "/" must fall through to the SPA fallback below, which serves the same
+    // file with the link-preview meta tags injected.
+    index: false,
     setHeaders: (res, filePath) => {
       const base = path.basename(filePath);
       // The SW update flow depends on the browser (and Cloudflare) always
@@ -79,6 +84,26 @@ export function createApp() {
       }
     }
     res.redirect('/recipes/add');
+  });
+
+  // Link previews for shared recipes. Messengers and social sites fetch the
+  // URL with a crawler that reads the <head> and runs no JavaScript, so the
+  // bare SPA shell unfurls as an empty card. Serve the shell with this
+  // recipe's own Open Graph / Twitter tags already in it; the app itself
+  // still boots and renders as usual.
+  app.get('/shared/:token', (req: Request, res: Response, next: NextFunction) => {
+    void (async () => {
+      try {
+        const token = req.params.token as string;
+        const recipe = await getRecipeByShareToken(token);
+        // An unknown token gets the generic card — the page says the link is
+        // invalid, and a preview must not confirm which tokens exist.
+        const preview = recipe ? await sharedRecipePreview(recipe, token, req) : appPreview(req);
+        await sendAppHtml(res, publicDir, preview);
+      } catch (err) {
+        next(err);
+      }
+    })();
   });
 
   // URL-prefix capture catch-all
@@ -135,9 +160,8 @@ export function createApp() {
   });
 
   // SPA fallback for all remaining routes (in production)
-  app.get('/{*path}', (_req: Request, res: Response) => {
-    res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(path.join(publicDir, 'index.html'));
+  app.get('/{*path}', (req: Request, res: Response, next: NextFunction) => {
+    sendAppHtml(res, publicDir, appPreview(req)).catch(next);
   });
 
   app.use(errorHandler);
