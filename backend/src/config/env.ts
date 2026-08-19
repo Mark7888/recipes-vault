@@ -8,6 +8,12 @@ const envSchema = z.object({
   ADMIN_USERNAME: z.string().min(1),
   ADMIN_PASSWORD: z.string().min(8),
   IMAGES_DIR: z.string().default('./data/images'),
+  // Public origin of the deployment (e.g. https://recipes.example.com). Only
+  // needed for the absolute URLs in link previews, and only when the reverse
+  // proxy in front of the app does not forward X-Forwarded-Proto / Host.
+  // An empty value is the same as unset — Docker Compose always passes the
+  // variable through, set or not.
+  PUBLIC_BASE_URL: z.union([z.string().url(), z.literal('')]).optional(),
   FETCH_TIMEOUT_MS: z.coerce.number().default(10000),
   FETCH_MAX_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB
 
