@@ -2,6 +2,7 @@ import {
   Box, Button, Flex, Heading, HStack, Input, Text, VStack, Badge, Spinner,
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { ShoppingListItem, ShoppingHistoryEntry } from '../types';
 import {
   useShoppingList,
@@ -22,13 +23,32 @@ import { CartIcon, CloseIcon, EditIcon, UndoIcon } from '../components/ui/icons'
 
 const MANUAL_LABEL = 'Manual';
 
+/**
+ * Where a line came from. `recipeId` nulls out when the recipe is deleted while
+ * the title snapshot stays, so a source can be nameable but not linkable.
+ */
+interface ItemSource {
+  key: string;
+  title: string;
+  recipeId: string | null;
+}
+
+function sourceOf(item: { recipeId: string | null; recipeTitle: string | null }): ItemSource {
+  const title = item.recipeTitle ?? MANUAL_LABEL;
+  return { key: item.recipeId ?? title, title, recipeId: item.recipeId };
+}
+
+function isManualSource(source: ItemSource) {
+  return !source.recipeId && source.title === MANUAL_LABEL;
+}
+
 interface MergedLine {
   key: string;
   name: string;
   unit: string;
   amount: string;
   items: ShoppingListItem[];
-  sources: string[];
+  sources: ItemSource[];
 }
 
 function mergeItems(items: ShoppingListItem[]): MergedLine[] {
@@ -36,11 +56,11 @@ function mergeItems(items: ShoppingListItem[]): MergedLine[] {
   for (const item of items) {
     const key = `${item.name.toLowerCase()}|${item.unit.toLowerCase()}`;
     const line = lines.get(key);
-    const source = item.recipeTitle ?? MANUAL_LABEL;
+    const source = sourceOf(item);
     if (line) {
       line.amount = addAmounts(line.amount, item.amount);
       line.items.push(item);
-      if (!line.sources.includes(source)) line.sources.push(source);
+      if (!line.sources.some(s => s.key === source.key)) line.sources.push(source);
     } else {
       lines.set(key, { key, name: item.name, unit: item.unit, amount: item.amount, items: [item], sources: [source] });
     }
@@ -56,20 +76,49 @@ function itemLabel(name: string, amount: string, unit: string) {
  * Recipe titles are arbitrarily long and a Badge never wraps, so on a phone an
  * untruncated one pushes the row past the viewport and the whole page starts
  * scrolling sideways. Cap the width and ellipsise; the full title stays
- * available as a tooltip.
+ * available as a tooltip. When the source recipe still exists the badge is a
+ * link to it.
  */
-function SourceBadge({ label, isManual }: { label: string; isManual: boolean }) {
+function SourceBadge({ source }: { source: ItemSource }) {
+  const badgeProps = {
+    colorPalette: isManualSource(source) ? 'gray' : 'green',
+    fontSize: '10px',
+    title: source.title,
+    minW: 0,
+    maxW: { base: '110px', sm: '220px' },
+    overflow: 'hidden',
+  };
+  const label = <Box as="span" truncate>{source.title}</Box>;
+
+  if (!source.recipeId) return <Badge {...badgeProps}>{label}</Badge>;
+
   return (
-    <Badge
-      colorPalette={isManual ? 'gray' : 'green'}
-      fontSize="10px"
-      title={label}
-      minW={0}
-      maxW={{ base: '110px', sm: '220px' }}
-      overflow="hidden"
-    >
-      <Box as="span" truncate>{label}</Box>
+    <Badge {...badgeProps} asChild _hover={{ textDecoration: 'underline' }}>
+      <Link to={`/recipes/${source.recipeId}`}>{label}</Link>
     </Badge>
+  );
+}
+
+/** Heading of a "By recipe" group; links to the recipe when it still exists. */
+function GroupHeading({ source }: { source: ItemSource }) {
+  const color = isManualSource(source) ? 'fg.muted' : 'green.fg';
+
+  if (!source.recipeId) {
+    return <Heading size="sm" mb={2} wordBreak="break-word" color={color}>{source.title}</Heading>;
+  }
+
+  return (
+    <Heading
+      asChild
+      size="sm"
+      mb={2}
+      display="inline-block"
+      wordBreak="break-word"
+      color={color}
+      _hover={{ textDecoration: 'underline' }}
+    >
+      <Link to={`/recipes/${source.recipeId}`}>{source.title}</Link>
+    </Heading>
   );
 }
 
@@ -116,9 +165,7 @@ function TodoRow({
         <>
           <Flex flex={1} minW={0} align="center" gap={2} flexWrap="wrap">
             <Text minW={0} wordBreak="break-word">{itemLabel(item.name, item.amount, item.unit)}</Text>
-            {showSource && (
-              <SourceBadge label={item.recipeTitle ?? MANUAL_LABEL} isManual={!item.recipeTitle} />
-            )}
+            {showSource && <SourceBadge source={sourceOf(item)} />}
           </Flex>
           <Button size="xs" variant="ghost" flexShrink={0} onClick={() => setEditing(true)}><EditIcon size={14} /></Button>
           <Button
@@ -160,7 +207,7 @@ function MergedRow({
           <Flex flex={1} minW={0} align="center" gap={2} flexWrap="wrap">
             <Text minW={0} wordBreak="break-word">{itemLabel(line.name, line.amount, line.unit)}</Text>
             {line.sources.map((s) => (
-              <SourceBadge key={s} label={s} isManual={s === MANUAL_LABEL} />
+              <SourceBadge key={s.key} source={s} />
             ))}
           </Flex>
           {single && <Button size="xs" variant="ghost" flexShrink={0} onClick={() => setEditing(true)}><EditIcon size={14} /></Button>}
@@ -230,14 +277,14 @@ function ListTab() {
   const mergedDone = useMemo(() => mergeItems(done), [done]);
 
   const groupedTodo = useMemo(() => {
-    const groups = new Map<string, ShoppingListItem[]>();
+    const groups = new Map<string, { source: ItemSource; items: ShoppingListItem[] }>();
     for (const item of todo) {
-      const key = item.recipeTitle ?? MANUAL_LABEL;
-      const group = groups.get(key);
-      if (group) group.push(item);
-      else groups.set(key, [item]);
+      const source = sourceOf(item);
+      const group = groups.get(source.key);
+      if (group) group.items.push(item);
+      else groups.set(source.key, { source, items: [item] });
     }
-    return [...groups.entries()];
+    return [...groups.values()];
   }, [todo]);
 
   const toggleIds = (ids: string[]) => {
@@ -330,11 +377,9 @@ function ListTab() {
         <Text color="fg.muted">Nothing to buy. Add items above or from a recipe page.</Text>
       ) : grouped ? (
         <VStack align="start" gap={4} w="full">
-          {groupedTodo.map(([title, groupItems]) => (
-            <Box key={title} w="full" minW={0}>
-              <Heading size="sm" mb={2} wordBreak="break-word" color={title === MANUAL_LABEL ? 'fg.muted' : 'green.fg'}>
-                {title}
-              </Heading>
+          {groupedTodo.map(({ source, items: groupItems }) => (
+            <Box key={source.key} w="full" minW={0}>
+              <GroupHeading source={source} />
               <VStack align="start" gap={0} w="full">
                 {groupItems.map((item) => (
                   <TodoRow
