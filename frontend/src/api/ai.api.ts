@@ -35,6 +35,14 @@ export interface AiCaptureParams {
    * creating a second copy of the same page.
    */
   recipeId?: string;
+  /** Extra wording from the user, e.g. "translate it to German". */
+  instructions?: string;
+}
+
+export interface AiReworkParams {
+  recipeId: string;
+  /** What the AI should do with the saved recipe. Required — it is the whole ask. */
+  instructions: string;
 }
 
 export const aiApi = {
@@ -46,7 +54,14 @@ export const aiApi = {
   createRecipe: (messages: AiChatMessage[]) =>
     apiClient.post<{ recipeId: string }>('/ai/recipe', { messages }).then(r => r.data),
 
-  capture: ({ url, recipeId }: AiCaptureParams) =>
-    apiClient.post<{ recipeId: string }>('/ai/capture', { url, ...(recipeId ? { recipeId } : {}) })
+  capture: ({ url, recipeId, instructions }: AiCaptureParams) =>
+    apiClient.post<{ recipeId: string }>('/ai/capture', {
+      url,
+      ...(recipeId ? { recipeId } : {}),
+      ...(instructions?.trim() ? { instructions: instructions.trim() } : {}),
+    }).then(r => r.data),
+
+  rework: ({ recipeId, instructions }: AiReworkParams) =>
+    apiClient.post<{ recipeId: string }>('/ai/rework', { recipeId, instructions: instructions.trim() })
       .then(r => r.data),
 };

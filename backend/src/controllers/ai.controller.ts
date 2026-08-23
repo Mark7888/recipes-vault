@@ -4,15 +4,16 @@ import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
 import { AiError, aiErrors } from '../services/ai/ai-errors.js';
-import { continueChat, extractRecipe, extractRecipeFromPage } from '../services/ai/recipe-assistant.service.js';
+import { continueChat, extractRecipe, extractRecipeFromPage, reworkRecipe } from '../services/ai/recipe-assistant.service.js';
 import { getAiModel, isAiConfigured, type ChatMessage } from '../services/ai/openrouter.service.js';
 import { createRecipe, getRecipeById, setRecipeTags, updateRecipe } from '../services/recipes.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
 import { fetchPage, parseHtml } from '../services/parser-dispatch.service.js';
 import { extractPageText } from '../services/page-text.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
+import { isSection } from '../utils/sections.js';
 import { createRateLimiter } from '../utils/rate-limit.js';
-import type { AuthenticatedRequest } from '../types/index.js';
+import type { AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
 
 // The conversation lives in the browser and is replayed on every turn, so these
 // caps are what keep a single request (and its token bill) bounded.
@@ -41,6 +42,16 @@ const conversationSchema = z.object({
 // page needs JavaScript, or a login, or simply is not a recipe.
 const MIN_PAGE_CHARS = 200;
 
+// Long enough for a real request ("translate to German and scale it to 8
+// servings"), short enough that it cannot become the bulk of the prompt.
+const MAX_INSTRUCTION_CHARS = 500;
+
+const instructionSchema = z
+  .string()
+  .trim()
+  .min(1, 'Write what the AI should do with this recipe.')
+  .max(MAX_INSTRUCTION_CHARS, `Keep the instructions under ${MAX_INSTRUCTION_CHARS} characters.`);
+
 const captureSchema = z.object({
   url: z.string().url('That does not look like a valid URL.').max(2048),
   /**
@@ -49,6 +60,13 @@ const captureSchema = z.object({
    * duplicate behind. Must belong to the caller.
    */
   recipeId: z.string().uuid().optional(),
+  /** Extra wording from the user, e.g. "translate it to German". */
+  instructions: instructionSchema.optional(),
+});
+
+const reworkSchema = z.object({
+  recipeId: z.string().uuid(),
+  instructions: instructionSchema,
 });
 
 const rateLimiter = createRateLimiter(env.AI_RATE_LIMIT_PER_MINUTE, 60_000);
@@ -88,6 +106,14 @@ function readConversation(body: unknown): ChatMessage[] {
     }
     return { role: message.role, content: message.content, ...(images?.length ? { images } : {}) };
   });
+}
+
+/**
+ * Prisma hands the two lists back as raw JSON. Nothing but this app writes
+ * them, so the only shape they are ever in is the one they went in as.
+ */
+function toEntries<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
 }
 
 function enforceRateLimit(userId: string): void {
@@ -168,14 +194,15 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
  * the model, which never sees them.
  *
  * With `recipeId`, the result replaces that recipe (used when a capture came
- * back without ingredients or steps) instead of leaving a duplicate behind.
+ * back without ingredients or steps) instead of leaving a duplicate behind, and
+ * `instructions` carries whatever the user asked for on top ("in German").
  */
 export async function postAiCapture(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
     const body = captureSchema.safeParse(req.body);
     if (!body.success) throw aiErrors.invalidRequest(body.error.issues[0]?.message ?? 'Invalid request.');
-    const { url, recipeId } = body.data;
+    const { url, recipeId, instructions } = body.data;
 
     // Ownership is settled before a single token is spent, and a recipe that
     // is not the caller's is reported the same way as one that never existed.
@@ -199,7 +226,7 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
     const { title, text } = extractPageText(page.html, env.AI_PAGE_MAX_CHARS);
     if (text.length < MIN_PAGE_CHARS) throw aiErrors.pageEmpty();
 
-    const extracted = await extractRecipeFromPage({ url: page.url, title, text });
+    const extracted = await extractRecipeFromPage({ url: page.url, title, text }, instructions);
     const parsed = await parseHtml(page.html, page.url);
 
     const recipeData = {
@@ -241,6 +268,79 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
       'Created recipe from AI page parse'
     );
     res.status(target ? 200 : 201).json({ recipeId: recipe.id });
+  } catch (err) {
+    sendAiError(res, err);
+  }
+}
+
+/**
+ * Rewrites a recipe the library already holds — translated, scaled, made vegan —
+ * from what is saved for it, not from the page it came from. The result replaces
+ * the recipe in place, so its images, its share link and the collections it sits
+ * in all stay where they are.
+ */
+export async function postAiRework(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  try {
+    const body = reworkSchema.safeParse(req.body);
+    if (!body.success) throw aiErrors.invalidRequest(body.error.issues[0]?.message ?? 'Invalid request.');
+    const { recipeId, instructions } = body.data;
+
+    // Settled before a token is spent, and a recipe that is not the caller's is
+    // reported the same way as one that never existed.
+    const recipe = await getRecipeById(recipeId);
+    if (!recipe || recipe.ownerId !== userId) {
+      throw aiErrors.invalidRequest('That recipe is not available to rework.');
+    }
+
+    const ingredients = toEntries<IngredientEntry>(recipe.ingredients);
+    const steps = toEntries<InstructionEntry>(recipe.instructions);
+    // Headings alone are not a recipe, and an empty one gives the model nothing
+    // to rework — say so rather than spending a request on it.
+    if (![...ingredients, ...steps].some((entry) => !isSection(entry))) {
+      throw aiErrors.invalidRequest('This recipe has no ingredients or steps yet, so there is nothing to rework.');
+    }
+
+    enforceRateLimit(userId);
+
+    const extracted = await reworkRecipe(
+      {
+        title: recipe.title,
+        ingredients,
+        instructions: steps,
+        prepTime: recipe.prepTime,
+        cookTime: recipe.cookTime,
+        servings: recipe.servings,
+        notes: recipe.notes,
+        tags: recipe.tags.map((t) => t.name),
+      },
+      instructions
+    );
+
+    await updateRecipe(recipe.id, {
+      title: extracted.title,
+      // Whatever wrote this recipe before, the model is what wrote what is here
+      // now. The source link stays: the recipe is still that page's, reworked.
+      origin: 'AI_GENERATED',
+      ingredients: extracted.ingredients,
+      instructions: extracted.instructions,
+      // Explicitly null rather than absent: an instruction that drops a time or
+      // a note ("forget the servings") has to be able to clear it.
+      prepTime: extracted.prepTime ?? null,
+      cookTime: extracted.cookTime ?? null,
+      servings: extracted.servings ?? null,
+      notes: extracted.notes ?? null,
+    });
+
+    // The model rewrites the tags too (a translation renames them), so they
+    // replace what was there instead of piling up next to it.
+    if (extracted.tags.length > 0) {
+      const tags = await findOrCreateTags(extracted.tags);
+      await setRecipeTags(recipe.id, tags.map((t) => t.id));
+    }
+
+    logger.info({ userId, recipeId: recipe.id }, 'Reworked recipe with AI');
+    res.json({ recipeId: recipe.id });
   } catch (err) {
     sendAiError(res, err);
   }

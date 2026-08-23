@@ -11,11 +11,12 @@ interface RecipeInput {
   origin?: RecipeOrigin;
   ingredients: IngredientEntry[];
   instructions: InstructionEntry[];
-  prepTime?: number;
-  cookTime?: number;
-  servings?: number;
-  // null clears a note that is no longer true (an AI re-parse replacing what a
-  // failed capture wrote); undefined leaves it alone.
+  // null clears a value that is no longer true (an AI rework told to drop the
+  // servings, a re-parse replacing what a failed capture wrote); undefined
+  // leaves it alone.
+  prepTime?: number | null;
+  cookTime?: number | null;
+  servings?: number | null;
   notes?: string | null;
 }
 

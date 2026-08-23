@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAiStatus, postAiCapture, postAiChat, postAiRecipe } from '../controllers/ai.controller.js';
+import { getAiStatus, postAiCapture, postAiChat, postAiRecipe, postAiRework } from '../controllers/ai.controller.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { aiAccessMiddleware } from '../middleware/ai-access.middleware.js';
 
@@ -13,5 +13,6 @@ router.use(aiAccessMiddleware);
 router.post('/chat', postAiChat);
 router.post('/recipe', postAiRecipe);
 router.post('/capture', postAiCapture);
+router.post('/rework', postAiRework);
 
 export default router;
