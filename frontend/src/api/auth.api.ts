@@ -7,7 +7,10 @@ export const authApi = {
       .then(r => r.data as { valid: boolean; reason?: 'not_found' | 'revoked' | 'used' }),
 
   register: (token: string, username: string, password: string) =>
-    apiClient.post('/auth/register', { token, username, password }).then(r => r.data),
+    // The browser's language is what the AI assistant starts out answering in;
+    // the server falls back to the request header and then to English.
+    apiClient.post('/auth/register', { token, username, password, language: navigator.language })
+      .then(r => r.data),
 
   login: (username: string, password: string) =>
     apiClient.post('/auth/login', { username, password }).then(r => r.data),

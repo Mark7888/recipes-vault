@@ -10,6 +10,7 @@ import {
 } from '../services/auth.service.js';
 import { consumeInviteLink, getInviteTokenStatus } from '../services/invite.service.js';
 import { consumePasswordResetLink } from '../services/password-reset.service.js';
+import { DEFAULT_AI_LANGUAGE, resolveAcceptLanguage, resolveLanguageTag } from '../services/ai/languages.js';
 import { z } from 'zod';
 
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
@@ -25,6 +26,12 @@ const registerSchema = z.object({
   token: z.string().min(1),
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/),
   password: z.string().min(8),
+  /**
+   * The browser's own language, so the AI assistant starts out answering in it.
+   * Anything unrecognized (or missing, on a client that does not send it) falls
+   * back to the request header and then to English.
+   */
+  language: z.string().max(35).optional(),
 });
 
 const loginSchema = z.object({
@@ -48,7 +55,11 @@ export async function register(req: Request, res: Response): Promise<void> {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { token, username, password } = parsed.data;
+  const { token, username, password, language } = parsed.data;
+  const aiLanguage =
+    (language ? resolveLanguageTag(language) : null) ??
+    resolveAcceptLanguage(req.headers['accept-language']) ??
+    DEFAULT_AI_LANGUAGE;
   const passwordError = passwordSchema.validate(password);
   if (passwordError) { res.status(400).json({ error: passwordError }); return; }
 
@@ -61,7 +72,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     // One transaction so a rejected invite doesn't leave a user behind and a
     // failed user creation doesn't burn the invite.
     user = await prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({ data: { username, passwordHash } });
+      const created = await tx.user.create({ data: { username, passwordHash, aiLanguage } });
       await consumeInviteLink(token, created.id, tx);
       return created;
     });

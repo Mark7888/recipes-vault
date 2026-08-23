@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore';
 import { TagInput } from '../components/recipe/TagInput';
 import { ImagePicker } from '../components/recipe/ImagePicker';
 import { AiReparseDialog } from '../components/recipe/AiReparseDialog';
+import { AiRecipeActionsPopover } from '../components/recipe/AiRecipeActionsPopover';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SortableStepItem } from '../components/recipe/SortableStepItem';
 import { SortableIngredientItem } from '../components/recipe/SortableIngredientItem';
@@ -283,7 +284,15 @@ export default function RecipeEdit() {
       <VStack align="start" gap={6}>
         <HStack justify="space-between" w="full" flexWrap="wrap" gap={2}>
           <Heading size="lg">Edit Recipe</Heading>
-          <HStack gap={2}>
+          <HStack gap={2} flexWrap="wrap" justify="flex-end">
+            {aiStatus.data?.enabled && (
+              <AiRecipeActionsPopover
+                recipeId={recipe.id}
+                sourceUrl={recipe.sourceUrl}
+                dirty={dirty}
+                onReworked={handleAiParsed}
+              />
+            )}
             <Button variant="ghost" colorPalette="red" onClick={() => setConfirmDelete(true)}>Delete</Button>
             <Button variant="ghost" onClick={handleCancelClick}>Cancel</Button>
             <Button colorPalette="green" onClick={handleSave} loading={saving}>Save</Button>
