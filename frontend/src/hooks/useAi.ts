@@ -4,6 +4,7 @@ import { recipeKeys } from './useRecipes';
 
 export const aiKeys = {
   status: () => ['ai', 'status'] as const,
+  languages: () => ['ai', 'languages'] as const,
 };
 
 export function useAiStatus() {
@@ -12,6 +13,26 @@ export function useAiStatus() {
     queryFn: () => aiApi.status(),
     staleTime: 5 * 60 * 1000,
     retry: false,
+  });
+}
+
+/** The language dropdown's options. Fixed for the life of the server build. */
+export function useAiLanguages() {
+  return useQuery({
+    queryKey: aiKeys.languages(),
+    queryFn: () => aiApi.languages(),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+export function useSetAiLanguage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (language: string) => aiApi.setLanguage(language),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: aiKeys.status() });
+    },
   });
 }
 

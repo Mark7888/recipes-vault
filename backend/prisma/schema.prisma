@@ -18,6 +18,10 @@ model User {
   // AI recipe assistant access. Off for everyone until an admin enables it
   // per user in the admin panel.
   aiEnabled       Boolean    @default(false)
+  // Language the assistant answers and writes recipes in unless it is told
+  // otherwise. Taken from the browser at registration; English for everyone
+  // who registered before this existed.
+  aiLanguage      String     @default("en")
   deletedAt       DateTime?
   createdAt       DateTime   @default(now())
   recipes         Recipe[]

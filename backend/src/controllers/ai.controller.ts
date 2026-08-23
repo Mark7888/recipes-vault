@@ -11,9 +11,10 @@ import { findOrCreateTags } from '../services/tags.service.js';
 import { fetchPage, parseHtml } from '../services/parser-dispatch.service.js';
 import { extractPageText } from '../services/page-text.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
+import { AI_LANGUAGES, DEFAULT_AI_LANGUAGE, isSupportedLanguage } from '../services/ai/languages.js';
 import { isSection } from '../utils/sections.js';
 import { createRateLimiter } from '../utils/rate-limit.js';
-import type { AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
+import type { AiRequest, AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
 
 // The conversation lives in the browser and is replayed on every turn, so these
 // caps are what keep a single request (and its token bill) bounded.
@@ -62,6 +63,10 @@ const captureSchema = z.object({
   recipeId: z.string().uuid().optional(),
   /** Extra wording from the user, e.g. "translate it to German". */
   instructions: instructionSchema.optional(),
+});
+
+const languageSchema = z.object({
+  language: z.string().max(35).refine(isSupportedLanguage, 'That is not a language the assistant offers.'),
 });
 
 const reworkSchema = z.object({
@@ -128,9 +133,44 @@ function enforceRateLimit(userId: string): void {
 export async function getAiStatus(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   const configured = isAiConfigured();
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { aiEnabled: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { aiEnabled: true, aiLanguage: true },
+  });
   const enabled = configured && !!user?.aiEnabled;
-  res.json({ configured, enabled, model: enabled ? getAiModel() : null });
+  res.json({
+    configured,
+    enabled,
+    model: enabled ? getAiModel() : null,
+    // Sent whatever the access flag says: the preference is the user's to set
+    // before an admin ever turns the assistant on for them.
+    language: user?.aiLanguage || DEFAULT_AI_LANGUAGE,
+  });
+}
+
+/** The dropdown's options — one list, so what is offered is what is accepted. */
+export function getAiLanguages(_req: Request, res: Response): void {
+  res.json(AI_LANGUAGES);
+}
+
+/**
+ * Sets the language the assistant works in. Auth-only, like the status it shows
+ * up in: picking it is a preference, not a use of the assistant.
+ */
+export async function patchAiLanguage(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const parsed = languageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid language.' });
+    return;
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { aiLanguage: parsed.data.language },
+    select: { aiLanguage: true },
+  });
+  res.json({ language: updated.aiLanguage });
 }
 
 export async function postAiChat(req: Request, res: Response): Promise<void> {
@@ -142,7 +182,7 @@ export async function postAiChat(req: Request, res: Response): Promise<void> {
     }
     enforceRateLimit(userId);
 
-    const { content, truncated } = await continueChat(messages);
+    const { content, truncated } = await continueChat(messages, (req as AiRequest).aiLanguage);
     res.json({ message: { role: 'assistant', content }, truncated });
   } catch (err) {
     sendAiError(res, err);
@@ -161,7 +201,7 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
     if (!messages.some((m) => m.role === 'assistant')) throw aiErrors.noRecipe();
     enforceRateLimit(userId);
 
-    const extracted = await extractRecipe(messages);
+    const extracted = await extractRecipe(messages, (req as AiRequest).aiLanguage);
 
     const recipe = await createRecipe(userId, {
       title: extracted.title,
@@ -226,7 +266,11 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
     const { title, text } = extractPageText(page.html, env.AI_PAGE_MAX_CHARS);
     if (text.length < MIN_PAGE_CHARS) throw aiErrors.pageEmpty();
 
-    const extracted = await extractRecipeFromPage({ url: page.url, title, text }, instructions);
+    const extracted = await extractRecipeFromPage(
+      { url: page.url, title, text },
+      instructions,
+      (req as AiRequest).aiLanguage
+    );
     const parsed = await parseHtml(page.html, page.url);
 
     const recipeData = {
@@ -314,7 +358,8 @@ export async function postAiRework(req: Request, res: Response): Promise<void> {
         notes: recipe.notes,
         tags: recipe.tags.map((t) => t.name),
       },
-      instructions
+      instructions,
+      (req as AiRequest).aiLanguage
     );
 
     await updateRecipe(recipe.id, {

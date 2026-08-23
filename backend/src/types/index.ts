@@ -8,6 +8,15 @@ export interface AdminRequest extends Request {
   adminScope: true;
 }
 
+/**
+ * What the AI gate leaves behind for the handlers past it: the user is known to
+ * have access, and the language they want answers in has already been read.
+ */
+export interface AiRequest extends Request {
+  userId: string;
+  aiLanguage: string;
+}
+
 export interface Ingredient {
   amount: string;
   unit: string;

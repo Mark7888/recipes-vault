@@ -7,6 +7,8 @@ A self-hosted, invite-only Progressive Web App for capturing and organizing reci
 - **Capture recipes from any URL** — paste a link or prefix any recipe URL with your domain to automatically extract title, ingredients, steps, times, and images
 - **Parse a stubborn page with AI** — when a site has no proper parser and the capture comes back empty, one button next to *Capture Recipe* has the AI read the page instead; the images the parser found are kept (off by default, enabled per user by the admin)
 - **Chat your way to a recipe** — optional AI assistant that suggests recipes, talks through what's in your fridge, and reads recipe screenshots; one button turns the result into a ready-to-edit recipe (off by default, enabled per user by the admin)
+- **Rework a saved recipe with AI** — a sparkle in the editor's button row takes an instruction ("translate this to German", "scale it to 8 servings") and rewrites the recipe in place, either from what is saved or by re-reading the page it came from (off by default, enabled per user by the admin)
+- **In your language** — the assistant chats, writes and parses in the language you pick under *Preferences*, taken from your browser when you register
 - **Edit after capture** — correct or refine what was extracted before saving; paste a screenshot straight in with *From Clipboard* next to *Upload Image*
 - **Sections in a recipe** — split the ingredients and the steps into parts ("For the bun", "For the patty") with headings that drag around the list like any other row; the AI writes and reads them too
 - **Organize with tags** — tag recipes and filter by tag in your library
@@ -103,6 +105,13 @@ normal parser found still end up on the recipe. When a normal capture comes back
 half empty the editor offers the same thing in a small dialog, and the result
 replaces that recipe rather than leaving a duplicate. Requires the setup below.
 
+**Method B3 — Rework a recipe you already have:**
+The editor's button row has the same sparkle. It asks for an instruction — "translate
+this to German", "scale it to 8 servings", "make it vegan" — and then either reworks the
+recipe from what is saved for it, or, on a recipe captured from a link, re-reads that
+page with your instruction in hand. Either way the recipe is rewritten in place, so it
+keeps its images, its share link and the collections it is in. Requires the setup below.
+
 **Method C — Chat with the AI assistant:**
 On the Add Recipe page pick "Chat with AI", describe what you feel like (or attach a
 screenshot of a recipe), and hit "Save as recipe" when you like what you see. You land
@@ -134,6 +143,16 @@ Swapping models is an env change plus `docker compose up -d` — no code change.
 
 Log in to `/admin`, find the user under **Users**, and click **Enable AI**. The same
 button revokes it, and revoking takes effect on the user's very next request.
+
+### 3. The language it works in
+
+Every user has an AI language, set under **Preferences** (next to the theme). The
+assistant chats in it, writes the recipes it saves in it, and translates the pages it
+parses into it — unless the conversation or the instructions typed next to a capture ask
+for something else, which always wins.
+
+New accounts start on the language their browser reports at registration; anything that
+isn't on the list, and every account that existed before this, starts on English.
 
 Nothing about the AI endpoints is reachable without both a valid login *and* that flag —
 that covers URL parsing as well as the chat, and the UI hides both from accounts without
