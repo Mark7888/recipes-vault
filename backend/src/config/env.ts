@@ -13,7 +13,7 @@ const envSchema = z.object({
   // proxy in front of the app does not forward X-Forwarded-Proto / Host.
   // An empty value is the same as unset — Docker Compose always passes the
   // variable through, set or not.
-  PUBLIC_BASE_URL: z.union([z.string().url(), z.literal('')]).optional(),
+  PUBLIC_BASE_URL: z.union([z.url(), z.literal('')]).optional(),
   FETCH_TIMEOUT_MS: z.coerce.number().default(10000),
   FETCH_MAX_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB
 
@@ -21,7 +21,7 @@ const envSchema = z.object({
   // Leaving OPENROUTER_API_KEY empty disables the assistant entirely: the API
   // reports it as unavailable and the frontend hides the chat option.
   OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
+  OPENROUTER_BASE_URL: z.url().default('https://openrouter.ai/api/v1'),
   // Any OpenRouter model slug — swap it without touching code. The model must
   // support image input and structured (JSON schema) output.
   OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
@@ -43,7 +43,7 @@ export type Env = z.infer<typeof envSchema>;
 function validateEnv(): Env {
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
-    console.error('Invalid environment variables:', result.error.format());
+    console.error('Invalid environment variables:\n' + z.prettifyError(result.error));
     process.exit(1);
   }
   return result.data;

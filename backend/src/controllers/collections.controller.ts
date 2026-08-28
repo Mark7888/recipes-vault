@@ -74,8 +74,8 @@ export async function addMemberHandler(req: Request, res: Response): Promise<voi
   const id = req.params.id as string;
   try {
     const { userId, role } = z.object({
-      userId: z.string().uuid(),
-      role: z.nativeEnum(Role),
+      userId: z.uuid(),
+      role: z.enum(Role),
     }).parse(req.body);
     const membership = await addMember(id, userId, role);
     res.status(201).json(membership);
@@ -88,7 +88,7 @@ export async function updateMemberRoleHandler(req: Request, res: Response): Prom
   const id = req.params.id as string;
   const userId = req.params.userId as string;
   try {
-    const { role } = z.object({ role: z.nativeEnum(Role) }).parse(req.body);
+    const { role } = z.object({ role: z.enum(Role) }).parse(req.body);
     const membership = await updateMemberRole(id, userId, role);
     res.json(membership);
   } catch (err) {
@@ -128,7 +128,7 @@ export async function transferOwnershipHandler(req: Request, res: Response): Pro
   const userId = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
   try {
-    const { toUserId } = z.object({ toUserId: z.string().uuid() }).parse(req.body);
+    const { toUserId } = z.object({ toUserId: z.uuid() }).parse(req.body);
     const transfer = await initiateOwnershipTransfer(id, userId, toUserId);
     res.status(201).json(transfer);
   } catch (err) {
@@ -173,7 +173,7 @@ export async function addRecipeHandler(req: Request, res: Response): Promise<voi
   const addedById = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
   try {
-    const { recipeId } = z.object({ recipeId: z.string().uuid() }).parse(req.body);
+    const { recipeId } = z.object({ recipeId: z.uuid() }).parse(req.body);
     const entry = await addRecipeToCollection(id, recipeId, addedById);
     res.status(201).json(entry);
   } catch (err) {

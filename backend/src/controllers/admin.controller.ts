@@ -50,7 +50,7 @@ export async function getInvites(_req: Request, res: Response): Promise<void> {
 
 export async function createPasswordReset(req: Request, res: Response): Promise<void> {
   try {
-    const { userId } = z.object({ userId: z.string().uuid() }).parse(req.body);
+    const { userId } = z.object({ userId: z.uuid() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.status !== UserStatus.ACTIVE) { res.status(404).json({ error: 'User not found' }); return; }
     const link = await createPasswordResetLink(userId);
@@ -77,7 +77,7 @@ export async function revokePasswordReset(req: Request, res: Response): Promise<
   }
 }
 
-const idParamSchema = z.object({ id: z.string().uuid() });
+const idParamSchema = z.object({ id: z.uuid() });
 
 export async function revokeInvite(req: Request, res: Response): Promise<void> {
   const params = idParamSchema.safeParse(req.params);

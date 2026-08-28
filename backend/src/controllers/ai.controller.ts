@@ -60,7 +60,7 @@ const captureSchema = z.object({
    * the result then replaces that recipe instead of leaving a half-empty
    * duplicate behind. Must belong to the caller.
    */
-  recipeId: z.string().uuid().optional(),
+  recipeId: z.uuid().optional(),
   /** Extra wording from the user, e.g. "translate it to German". */
   instructions: instructionSchema.optional(),
 });
@@ -70,7 +70,7 @@ const languageSchema = z.object({
 });
 
 const reworkSchema = z.object({
-  recipeId: z.string().uuid(),
+  recipeId: z.uuid(),
   instructions: instructionSchema,
 });
 
