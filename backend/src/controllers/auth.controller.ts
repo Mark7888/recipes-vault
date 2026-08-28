@@ -9,6 +9,7 @@ import {
   passwordSchema,
 } from '../services/auth.service.js';
 import { consumeInviteLink, getInviteTokenStatus } from '../services/invite.service.js';
+import { ensureDefaultCollection } from '../services/collections.service.js';
 import { consumePasswordResetLink } from '../services/password-reset.service.js';
 import { DEFAULT_AI_LANGUAGE, resolveAcceptLanguage, resolveLanguageTag } from '../services/ai/languages.js';
 import { z } from 'zod';
@@ -74,6 +75,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({ data: { username, passwordHash, aiLanguage } });
       await consumeInviteLink(token, created.id, tx);
+      await ensureDefaultCollection(created.id, tx);
       return created;
     });
   } catch (err) {

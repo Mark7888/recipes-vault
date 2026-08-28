@@ -213,6 +213,9 @@ export async function isRecipeAccessibleByUser(recipeId: string, userId: string)
   const recipe = await prisma.recipe.findUnique({
     where: { id: recipeId },
     include: {
+      // Being on the owner's recipe book grants access to everything they own,
+      // this recipe included — that membership is the only row behind it.
+      owner: { select: { defaultCollection: { select: { members: { where: { userId }, select: { id: true } } } } } },
       collections: {
         include: {
           collection: {
@@ -224,5 +227,6 @@ export async function isRecipeAccessibleByUser(recipeId: string, userId: string)
   });
   if (!recipe) return false;
   if (recipe.ownerId === userId) return true;
+  if ((recipe.owner.defaultCollection?.members.length ?? 0) > 0) return true;
   return recipe.collections.some(rc => rc.collection.members.length > 0);
 }

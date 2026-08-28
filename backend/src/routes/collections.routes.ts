@@ -8,6 +8,7 @@ import {
   addMemberHandler,
   updateMemberRoleHandler,
   removeMemberHandler,
+  leaveCollectionHandler,
   addRecipeHandler,
   removeRecipeHandler,
   listIncomingTransfersHandler,
@@ -31,6 +32,9 @@ router.delete('/:id', requireRole(Role.OWNER), deleteCollectionHandler);
 router.post('/:id/members', requireRole(Role.OWNER), addMemberHandler);
 router.patch('/:id/members/:userId', requireRole(Role.OWNER), updateMemberRoleHandler);
 router.delete('/:id/members/:userId', requireRole(Role.OWNER), removeMemberHandler);
+// Any member but the Owner can walk away on their own, so this is gated by
+// membership alone — leaveCollection rejects the Owner itself.
+router.post('/:id/leave', leaveCollectionHandler);
 router.post('/:id/transfer', requireRole(Role.OWNER), transferOwnershipHandler);
 // No role gate here: by the time this fires the sender may already have
 // been demoted (the other party accepted first), and cancelOwnershipTransfer

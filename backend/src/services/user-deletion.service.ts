@@ -13,8 +13,12 @@ import { logger } from '../lib/logger.js';
  *    user's content while preserving what others depend on:
  *      - collections shared with other members survive (ownership is handed
  *        to another member if needed); solo collections are deleted
- *      - recipes that are in at least one collection survive; the rest are
- *        deleted along with their image files
+ *      - the user's own recipe book survives if anyone else is on it, still
+ *        owned by the tombstone and with nothing new ever added to it; a book
+ *        nobody else is on is deleted
+ *      - recipes that are in at least one collection survive, as do all of
+ *        them when a surviving book still shows them; the rest are deleted
+ *        along with their image files
  *    Every step is idempotent, so a crash mid-cleanup is repaired on the
  *    next worker tick.
  */
@@ -62,11 +66,16 @@ async function cleanUpDeletedUser(userId: string): Promise<void> {
  * kept (promoting someone to OWNER if the deleted user owned it); collections
  * where they were the sole member are deleted, cascading their memberships
  * and recipe links.
+ *
+ * The user's own recipe book is the exception: it cannot change hands, so as
+ * long as someone else is still on it the book stays exactly as it is —
+ * owned by the tombstone, read-only in practice, with nobody left to add to
+ * it. Only a book nobody else is on goes away with its owner.
  */
 async function detachFromCollections(userId: string): Promise<void> {
   const memberships = await prisma.collectionMembership.findMany({
     where: { userId },
-    select: { collectionId: true, role: true },
+    select: { collectionId: true, role: true, collection: { select: { defaultForUserId: true } } },
   });
 
   for (const membership of memberships) {
@@ -83,6 +92,10 @@ async function detachFromCollections(userId: string): Promise<void> {
         await tx.collection.delete({ where: { id: membership.collectionId } });
         return;
       }
+
+      // Their own book, still shared with someone: leave it be, tombstone
+      // owner and all.
+      if (membership.collection.defaultForUserId === userId) return;
 
       if (membership.role === Role.OWNER && !others.some(m => m.role === Role.OWNER)) {
         await tx.collectionMembership.update({
@@ -103,16 +116,22 @@ async function detachFromCollections(userId: string): Promise<void> {
  * re-checks the "not in a collection" condition atomically, so a recipe that
  * gets added to a collection between listing and deleting is spared — and its
  * image files are only unlinked when the row was actually deleted.
+ *
+ * A recipe book that outlived its owner keeps every one of their recipes
+ * alive, the same way a shared collection does — detachFromCollections has
+ * already deleted the book if nobody else was on it, so a book still standing
+ * here is one someone is reading.
  */
 async function deleteOrphanRecipes(userId: string): Promise<void> {
+  const isOrphaned = { collections: { none: {} }, owner: { defaultCollection: { is: null } } };
   const orphans = await prisma.recipe.findMany({
-    where: { ownerId: userId, collections: { none: {} } },
+    where: { ownerId: userId, ...isOrphaned },
     select: { id: true, images: { select: { filePath: true } } },
   });
 
   for (const recipe of orphans) {
     const { count } = await prisma.recipe.deleteMany({
-      where: { id: recipe.id, collections: { none: {} } },
+      where: { id: recipe.id, ...isOrphaned },
     });
     if (count === 1) {
       for (const image of recipe.images) {

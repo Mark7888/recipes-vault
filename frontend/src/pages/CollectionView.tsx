@@ -44,6 +44,8 @@ export default function CollectionView() {
 
   const myMembership = collection.members.find((m) => m.userId === user?.id);
   const isOwner = myMembership?.role === 'OWNER';
+  const isBook = collection.isDefault;
+  const bookOwner = isBook ? collection.members.find((m) => m.role === 'OWNER')?.user.username : undefined;
   const incomingTransfer = collection.pendingTransfer?.toUser.id === user?.id ? collection.pendingTransfer : undefined;
 
   const handleReject = async () => {
@@ -68,6 +70,11 @@ export default function CollectionView() {
             )}
           </HStack>
           <Text fontSize="sm" color="fg.muted">{collection.members.length} members</Text>
+          {isBook && (
+            <Text fontSize="sm" color="fg.muted">
+              Every recipe {isOwner ? 'you add' : `${bookOwner ?? 'the owner'} adds`} shows up here automatically.
+            </Text>
+          )}
         </VStack>
         <HStack gap={2} align="start" flexWrap="wrap">
           {isOwner && (
@@ -75,13 +82,12 @@ export default function CollectionView() {
               collectionId={id!}
               members={collection.members}
               currentUserId={user!.id}
+              viewerOnly={isBook}
             />
           )}
-          {isOwner && (
-            <Link to={`/collections/${id}/edit`}>
-              <Button size="sm" colorPalette="green" variant="outline">Manage Collection</Button>
-            </Link>
-          )}
+          <Link to={`/collections/${id}/edit`}>
+            <Button size="sm" colorPalette="green" variant="outline">Manage Collection</Button>
+          </Link>
         </HStack>
       </Flex>
 
@@ -178,7 +184,8 @@ export default function CollectionView() {
         >
           {filteredRecipes.map((rc) => {
             if (!rc.recipe) return null;
-            const canRemove = isOwner || rc.addedById === user?.id;
+            // Nothing was put in a book by hand, so nothing can be taken out.
+            const canRemove = !isBook && (isOwner || rc.addedById === user?.id);
             return (
               <RecipeCard
                 key={rc.id}
@@ -193,7 +200,11 @@ export default function CollectionView() {
       ) : (
         <Box textAlign="center" py={12}>
           <Text color="fg.muted">
-            {search || adderFilter ? 'No recipes match your filters.' : 'No recipes in this collection yet.'}
+            {search || adderFilter
+              ? 'No recipes match your filters.'
+              : isBook
+                ? `No recipes yet — the first one ${isOwner ? 'you capture' : `${bookOwner ?? 'the owner'} captures`} shows up here.`
+                : 'No recipes in this collection yet.'}
           </Text>
         </Box>
       )}

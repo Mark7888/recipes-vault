@@ -26,6 +26,9 @@ export const collectionsApi = {
   removeMember: (id: string, userId: string) =>
     apiClient.delete(`/collections/${id}/members/${userId}`),
 
+  leave: (id: string) =>
+    apiClient.post(`/collections/${id}/leave`),
+
   addRecipe: (id: string, recipeId: string) =>
     apiClient.post(`/collections/${id}/recipes`, { recipeId }).then(r => r.data),
 

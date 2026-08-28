@@ -125,7 +125,15 @@ export interface IncomingTransfer extends OwnershipTransfer {
 
 export interface Collection {
   id: string;
+  /** For a recipe book this follows the owner's username, set by the server. */
   name: string;
+  /**
+   * A user's own recipe book: it holds every recipe its owner owns, without
+   * anyone adding them, and everyone else on it is a Viewer. It cannot be
+   * renamed, deleted or handed over, and recipes cannot be put in or taken out.
+   */
+  isDefault: boolean;
+  defaultForUserId?: string | null;
   members: CollectionMember[];
   recipes?: RecipeCollection[];
   _count?: { recipes: number };
