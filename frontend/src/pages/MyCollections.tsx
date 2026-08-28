@@ -36,6 +36,7 @@ function CollectionGrid({ collections, userId }: { collections: ReturnType<typeo
                   <Heading size="sm">{collection.name}</Heading>
                   <Text fontSize="sm" color="fg.muted">{collection._count?.recipes ?? 0} recipes</Text>
                   <HStack gap={2} flexWrap="wrap">
+                    {collection.isDefault && <Badge colorPalette="purple" size="sm">Recipe book</Badge>}
                     {myRole && <RoleBadge role={myRole} />}
                     <Text fontSize="sm" color="fg.subtle">{collection.members.length} members</Text>
                   </HStack>
@@ -111,7 +112,11 @@ export default function Collections() {
   const { user } = useAuthStore();
 
   const matchesSearch = (name: string) => name.toLowerCase().includes(search.trim().toLowerCase());
-  const owned = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role === 'OWNER') && matchesSearch(c.name));
+  // Your own recipe book leads the list — it is the one collection you never
+  // made and never fill in by hand.
+  const owned = collections
+    ?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role === 'OWNER') && matchesSearch(c.name))
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
   const shared = collections?.filter((c) => c.members.some((m) => m.userId === user?.id && m.role !== 'OWNER') && matchesSearch(c.name));
 
   const handleCreate = async (e: React.FormEvent) => {

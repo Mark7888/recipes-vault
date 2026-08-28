@@ -33,6 +33,7 @@ model User {
   shoppingHistory ShoppingHistoryEntry[]
   sentTransfers     OwnershipTransfer[] @relation("TransferFrom")
   receivedTransfers OwnershipTransfer[] @relation("TransferTo")
+  defaultCollection Collection? @relation("DefaultCollection")
 
   @@index([status])
 }
@@ -75,9 +76,19 @@ model Tag {
   @@index([name])
 }
 
+// A collection is either an ordinary one — recipes are put in it by hand, as
+// RecipeCollection rows — or a user's own recipe book (isDefault). A book has
+// no RecipeCollection rows at all: every recipe its owner owns is in it, worked
+// out at read time, so anyone the book is shared with sees the owner's whole
+// library as it grows. Exactly one book per user (defaultForUserId is unique),
+// its name is derived from the owner's username on read, and it cannot be
+// renamed, deleted or handed over — everyone else on it is a VIEWER.
 model Collection {
   id              String              @id @default(uuid())
   name            String
+  isDefault       Boolean             @default(false)
+  defaultForUserId String?            @unique
+  defaultForUser  User?               @relation("DefaultCollection", fields: [defaultForUserId], references: [id], onDelete: Cascade)
   members         CollectionMembership[]
   recipes         RecipeCollection[]
   pendingTransfer OwnershipTransfer?

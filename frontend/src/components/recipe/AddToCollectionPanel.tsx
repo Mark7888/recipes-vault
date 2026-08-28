@@ -18,8 +18,10 @@ export function AddToCollectionPanel({ recipeId }: Props) {
   const { data: memberOf = [] } = useRecipeCollections(recipeId);
   const toggle = useToggleRecipeInCollection();
 
+  // Recipe books are left out: a recipe is in its owner's book by virtue of
+  // being theirs, so there is nothing to toggle.
   const filtered = collections.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+    !c.isDefault && c.name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (

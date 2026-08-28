@@ -8,14 +8,17 @@ interface Props {
   member: CollectionMember;
   currentUserId: string;
   isOwner: boolean;
+  /** False on a recipe book: everyone on it is a Viewer and it never changes hands. */
+  canChangeRole?: boolean;
   onRoleChange?: (userId: string, role: Role) => void;
   onRemove?: (userId: string) => void;
   onTransfer?: (userId: string) => void;
   transferPending?: boolean;
 }
 
-export function MemberRow({ member, currentUserId, isOwner, onRoleChange, onRemove, onTransfer, transferPending }: Props) {
+export function MemberRow({ member, currentUserId, isOwner, canChangeRole = true, onRoleChange, onRemove, onTransfer, transferPending }: Props) {
   const [confirmTransfer, setConfirmTransfer] = useState(false);
+  const canManage = isOwner && member.userId !== currentUserId;
 
   const handleConfirmTransfer = () => {
     onTransfer?.(member.userId);
@@ -26,26 +29,32 @@ export function MemberRow({ member, currentUserId, isOwner, onRoleChange, onRemo
     <HStack justify="space-between" py={2} borderBottomWidth="1px" w="full" flexWrap="wrap" gap={2}>
       <Text fontWeight="medium">{member.user.username}</Text>
       <HStack gap={2}>
-        {isOwner && member.userId !== currentUserId ? (
+        {canManage ? (
           <>
-            <NativeSelect.Root size="sm" w="auto">
-              <NativeSelect.Field
-                value={member.role}
-                onChange={(e) => onRoleChange?.(member.userId, e.target.value as Role)}
+            {canChangeRole ? (
+              <NativeSelect.Root size="sm" w="auto">
+                <NativeSelect.Field
+                  value={member.role}
+                  onChange={(e) => onRoleChange?.(member.userId, e.target.value as Role)}
+                >
+                  <option value="EDITOR">EDITOR</option>
+                  <option value="VIEWER">VIEWER</option>
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+            ) : (
+              <RoleBadge role={member.role} />
+            )}
+            {canChangeRole && (
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette="orange"
+                onClick={() => setConfirmTransfer(true)}
               >
-                <option value="EDITOR">EDITOR</option>
-                <option value="VIEWER">VIEWER</option>
-              </NativeSelect.Field>
-              <NativeSelect.Indicator />
-            </NativeSelect.Root>
-            <Button
-              size="xs"
-              variant="outline"
-              colorPalette="orange"
-              onClick={() => setConfirmTransfer(true)}
-            >
-              Transfer ownership
-            </Button>
+                Transfer ownership
+              </Button>
+            )}
             <Button
               size="xs"
               variant="ghost"

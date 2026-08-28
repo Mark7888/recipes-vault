@@ -9,6 +9,8 @@ interface Props {
   collectionId: string;
   members: CollectionMember[];
   currentUserId: string;
+  /** A recipe book is shared read-only, so Viewer is the only role on offer. */
+  viewerOnly?: boolean;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -17,7 +19,7 @@ const ROLE_LABELS: Record<Role, string> = {
   VIEWER: 'Viewer',
 };
 
-export function ShareCollectionPanel({ collectionId, members, currentUserId }: Props) {
+export function ShareCollectionPanel({ collectionId, members, currentUserId, viewerOnly }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [memberToRemove, setMemberToRemove] = useState<{ userId: string; username: string } | null>(null);
@@ -44,8 +46,26 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
           </Button>
         </Collapsible.Trigger>
 
-        <Collapsible.Content position="absolute" top="calc(100% + 8px)" right={0} zIndex={10}>
-          <Box bg="bg.panel" shadow="lg" borderWidth="1px" borderRadius="lg" overflow="hidden" minW={{ base: '270px', sm: '360px' }} maxW="88vw">
+        {/* On mobile the trigger sits at the left edge of the header, so the
+            panel hangs off its left corner and spans the viewport minus the
+            page gutters; from sm up it hangs off the right corner as before. */}
+        <Collapsible.Content
+          position="absolute"
+          top="calc(100% + 8px)"
+          left={{ base: 0, sm: 'auto' }}
+          right={{ base: 'auto', sm: 0 }}
+          zIndex={10}
+        >
+          <Box
+            bg="bg.panel"
+            shadow="lg"
+            borderWidth="1px"
+            borderRadius="lg"
+            overflow="hidden"
+            w={{ base: 'calc(100vw - 1.5rem)', sm: 'auto' }}
+            minW={{ base: 'auto', sm: '360px' }}
+            maxW={{ base: 'calc(100vw - 1.5rem)', sm: '88vw' }}
+          >
             {/* Current members (non-owner) */}
             {nonOwnerMembers.length > 0 && (
               <Box borderBottomWidth="1px">
@@ -134,21 +154,23 @@ export function ShareCollectionPanel({ collectionId, members, currentUserId }: P
                           <HStack gap={1}>
                             <Button
                               size="xs"
-                              variant="outline"
+                              variant={viewerOnly ? 'solid' : 'outline'}
                               colorPalette="blue"
                               loading={loading}
                               onClick={() => toggle.mutate({ collectionId, userId: u.id, isMember: false, role: 'VIEWER' })}
                             >
                               + Viewer
                             </Button>
-                            <Button
-                              size="xs"
-                              colorPalette="blue"
-                              loading={loading}
-                              onClick={() => toggle.mutate({ collectionId, userId: u.id, isMember: false, role: 'EDITOR' })}
-                            >
-                              + Editor
-                            </Button>
+                            {!viewerOnly && (
+                              <Button
+                                size="xs"
+                                colorPalette="blue"
+                                loading={loading}
+                                onClick={() => toggle.mutate({ collectionId, userId: u.id, isMember: false, role: 'EDITOR' })}
+                              >
+                                + Editor
+                              </Button>
+                            )}
                           </HStack>
                         )}
                       </HStack>

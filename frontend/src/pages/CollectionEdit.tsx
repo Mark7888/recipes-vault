@@ -11,6 +11,7 @@ import {
   useRemoveCollectionMember,
   useTransferOwnership,
   useCancelTransfer,
+  useLeaveCollection,
 } from '../hooks/useCollections';
 import { useAuthStore } from '../store/authStore';
 import { MemberRow } from '../components/collection/MemberRow';
@@ -28,11 +29,13 @@ export default function CollectionEdit() {
   const removeMember = useRemoveCollectionMember();
   const transferOwnership = useTransferOwnership();
   const cancelTransfer = useCancelTransfer();
+  const leaveCollection = useLeaveCollection();
 
   const [name, setName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [confirmCancelTransfer, setConfirmCancelTransfer] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   if (isLoading) return <Box p={8} textAlign="center"><Spinner size="xl" /></Box>;
   if (!collection) {
@@ -44,10 +47,56 @@ export default function CollectionEdit() {
   }
 
   const myRole = collection.members.find((m) => m.userId === user?.id)?.role;
+  const isBook = collection.isDefault;
+  const ownerName = collection.members.find((m) => m.role === 'OWNER')?.user.username;
+
+  const handleLeave = async () => {
+    await leaveCollection.mutateAsync(id!);
+    setConfirmLeave(false);
+    navigate('/collections');
+  };
+
+  // Everyone but the Owner comes here for one thing: to walk away from a
+  // collection that was shared with them.
   if (myRole !== 'OWNER') {
     return (
-      <Box p={4} bg="bg.error" borderRadius="md" borderWidth="1px" borderColor="border.error">
-        <Text color="fg.error">Only the Owner can edit this collection.</Text>
+      <Box maxW="600px" mx="auto" py={6}>
+        <VStack align="start" gap={6}>
+          <HStack justify="space-between" w="full">
+            <Heading size="lg">Manage Collection</Heading>
+            <Button variant="ghost" onClick={() => navigate(`/collections/${id}`)}>Back</Button>
+          </HStack>
+
+          <Box w="full">
+            <Heading size="sm" mb={1}>{collection.name}</Heading>
+            <Text fontSize="sm" color="fg.muted">
+              Shared with you by {ownerName ?? 'its owner'} — you are {myRole === 'EDITOR' ? 'an Editor' : 'a Viewer'}.
+            </Text>
+          </Box>
+
+          <Box w="full" borderTopWidth="1px" pt={4}>
+            <Button colorPalette="red" variant="outline" onClick={() => setConfirmLeave(true)}>
+              Leave Collection
+            </Button>
+            <Text fontSize="sm" color="fg.muted" mt={2}>
+              You'll lose access to it unless it is shared with you again.
+            </Text>
+          </Box>
+        </VStack>
+
+        <ConfirmDialog
+          open={confirmLeave}
+          title="Leave collection?"
+          message={
+            isBook
+              ? `You'll lose access to "${collection.name}" and the recipes in it.`
+              : `You'll lose access to "${collection.name}". Recipes you added to it stay in the collection.`
+          }
+          confirmLabel="Leave"
+          loading={leaveCollection.isPending}
+          onConfirm={handleLeave}
+          onCancel={() => setConfirmLeave(false)}
+        />
       </Box>
     );
   }
@@ -133,24 +182,34 @@ export default function CollectionEdit() {
     <Box maxW="600px" mx="auto" py={6}>
       <VStack align="start" gap={6}>
         <HStack justify="space-between" w="full">
-          <Heading size="lg">Edit Collection</Heading>
+          <Heading size="lg">{isBook ? 'Manage Recipe Book' : 'Edit Collection'}</Heading>
           <Button variant="ghost" onClick={() => navigate(`/collections/${id}`)}>Back</Button>
         </HStack>
 
-        <Box w="full">
-          <Heading size="sm" mb={3}>Rename Collection</Heading>
-          <form onSubmit={handleRename}>
-            <HStack gap={2}>
-              <Input
-                placeholder={collection.name}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <Button type="submit" colorPalette="green" loading={renameCollection.isPending}>Rename</Button>
-            </HStack>
-          </form>
-        </Box>
+        {isBook ? (
+          <Box w="full">
+            <Heading size="sm" mb={1}>{collection.name}</Heading>
+            <Text fontSize="sm" color="fg.muted">
+              Your book holds every recipe you own, and everyone you share it with reads it as a
+              Viewer. It is named after you, so there is nothing here to rename, hand over or delete.
+            </Text>
+          </Box>
+        ) : (
+          <Box w="full">
+            <Heading size="sm" mb={3}>Rename Collection</Heading>
+            <form onSubmit={handleRename}>
+              <HStack gap={2}>
+                <Input
+                  placeholder={collection.name}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                <Button type="submit" colorPalette="green" loading={renameCollection.isPending}>Rename</Button>
+              </HStack>
+            </form>
+          </Box>
+        )}
 
         <Box w="full" borderTopWidth="1px" pt={4}>
           <Heading size="sm" mb={3}>Members</Heading>
@@ -161,6 +220,7 @@ export default function CollectionEdit() {
                 member={member}
                 currentUserId={user!.id}
                 isOwner={myRole === 'OWNER'}
+                canChangeRole={!isBook}
                 onRoleChange={handleRoleChange}
                 onRemove={(userId) => setMemberToRemove(userId)}
                 onTransfer={handleTransfer}
@@ -170,15 +230,17 @@ export default function CollectionEdit() {
           </VStack>
         </Box>
 
-        <Box w="full" borderTopWidth="1px" pt={4}>
-          <Heading size="sm" mb={3} color="fg.error">Danger Zone</Heading>
-          <Button colorPalette="red" variant="outline" onClick={() => setConfirmDelete(true)}>
-            Delete Collection
-          </Button>
-          <Text fontSize="sm" color="fg.muted" mt={2}>
-            Recipes will NOT be deleted — they will remain in their owners' libraries.
-          </Text>
-        </Box>
+        {!isBook && (
+          <Box w="full" borderTopWidth="1px" pt={4}>
+            <Heading size="sm" mb={3} color="fg.error">Danger Zone</Heading>
+            <Button colorPalette="red" variant="outline" onClick={() => setConfirmDelete(true)}>
+              Delete Collection
+            </Button>
+            <Text fontSize="sm" color="fg.muted" mt={2}>
+              Recipes will NOT be deleted — they will remain in their owners' libraries.
+            </Text>
+          </Box>
+        )}
       </VStack>
 
       <ConfirmDialog
@@ -192,7 +254,7 @@ export default function CollectionEdit() {
       <ConfirmDialog
         open={memberToRemove !== null}
         title="Remove member?"
-        message={`${collection.members.find((m) => m.userId === memberToRemove)?.user.username ?? 'This member'} will lose access to this collection.`}
+        message={`${collection.members.find((m) => m.userId === memberToRemove)?.user.username ?? 'This member'} will lose access to ${isBook ? 'your recipe book' : 'this collection'}.`}
         confirmLabel="Remove"
         loading={removeMember.isPending}
         onConfirm={handleRemoveMember}

@@ -137,6 +137,14 @@ export function useRemoveCollectionMember() {
   });
 }
 
+export function useLeaveCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => collectionsApi.leave(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: collectionKeys.all }),
+  });
+}
+
 export function useAddRecipeToCollection() {
   const qc = useQueryClient();
   return useMutation({

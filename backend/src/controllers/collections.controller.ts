@@ -10,6 +10,7 @@ import {
   addMember,
   updateMemberRole,
   removeMember,
+  leaveCollection,
   addRecipeToCollection,
   removeRecipeFromCollection,
   getUserRoleInCollection,
@@ -61,8 +62,12 @@ export async function renameCollectionHandler(req: Request, res: Response): Prom
 
 export async function deleteCollectionHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
-  await deleteCollection(id);
-  res.status(204).send();
+  try {
+    await deleteCollection(id);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 }
 
 export async function addMemberHandler(req: Request, res: Response): Promise<void> {
@@ -96,6 +101,17 @@ export async function removeMemberHandler(req: Request, res: Response): Promise<
   const userId = req.params.userId as string;
   try {
     await removeMember(id, userId);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+}
+
+export async function leaveCollectionHandler(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const id = req.params.id as string;
+  try {
+    await leaveCollection(id, userId);
     res.status(204).send();
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
