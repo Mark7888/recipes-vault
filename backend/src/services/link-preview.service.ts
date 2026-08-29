@@ -77,7 +77,7 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
   return raw?.split(',')[0]?.trim() || undefined;
 }
 
-const HOST_PATTERN = /^[A-Za-z0-9.\-]+(:\d{1,5})?$/;
+const HOST_PATTERN = /^[A-Za-z0-9.-]+(:\d{1,5})?$/;
 
 /**
  * The origin a crawler has to be handed, since og:url and og:image only work

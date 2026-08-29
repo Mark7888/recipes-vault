@@ -108,7 +108,7 @@ export function createApp() {
 
   // URL-prefix capture catch-all
   // Pattern: /<domain>/<path> where domain looks like a real domain (has a dot + TLD)
-  const domainPattern = /^\/([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+)(\/.*)?$/;
+  const domainPattern = /^\/([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)(\/.*)?$/;
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/images')) {

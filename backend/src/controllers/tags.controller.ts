@@ -27,7 +27,7 @@ export async function renameTagHandler(req: Request, res: Response): Promise<voi
 export async function mergeTagHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   try {
-    const { targetId } = z.object({ targetId: z.string().uuid() }).parse(req.body);
+    const { targetId } = z.object({ targetId: z.uuid() }).parse(req.body);
     const tag = await mergeTag(id, targetId);
     res.json(tag);
   } catch (err) {

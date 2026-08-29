@@ -56,7 +56,7 @@ export async function handleCapture(url: string, userId: string, res: Response):
 router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { url } = z.object({ url: z.string().url() }).parse(req.body);
+    const { url } = z.object({ url: z.url() }).parse(req.body);
     await handleCapture(url, userId, res);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

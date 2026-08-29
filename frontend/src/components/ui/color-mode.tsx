@@ -4,7 +4,7 @@ import { ThemeProvider, useTheme, type ThemeProviderProps } from 'next-themes';
 import { forwardRef } from 'react';
 import { SunIcon, MoonIcon } from './icons';
 
-export interface ColorModeProviderProps extends ThemeProviderProps {}
+export type ColorModeProviderProps = ThemeProviderProps;
 
 export function ColorModeProvider(props: ColorModeProviderProps) {
   return <ThemeProvider attribute="class" disableTransitionOnChange {...props} />;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Box, Button, Heading, VStack, Text, Container, Link as ChakraLink } from '@chakra-ui/react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
@@ -32,10 +32,6 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!token) setError('Invalid or missing reset token.');
-  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

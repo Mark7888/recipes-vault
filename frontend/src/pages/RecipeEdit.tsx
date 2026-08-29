@@ -148,6 +148,9 @@ export default function RecipeEdit() {
     if (searchParams.get('aiSuggest') !== '1' || !recipe || aiStatus.isLoading) return;
 
     const missing = describeMissing(recipe);
+    // Opening the offer is the effect's purpose, and it runs once before the
+    // flag below is dropped, so the extra render is bounded.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (missing && recipe.sourceUrl && aiStatus.data?.enabled) setAiReparse(missing);
 
     const next = new URLSearchParams(searchParams);

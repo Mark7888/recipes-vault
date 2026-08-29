@@ -17,7 +17,7 @@ const itemInputSchema = z.object({
   name: z.string().min(1),
   amount: z.string().optional(),
   unit: z.string().optional(),
-  recipeId: z.string().uuid().nullish(),
+  recipeId: z.uuid().nullish(),
   recipeTitle: z.string().nullish(),
 });
 
@@ -79,7 +79,7 @@ export async function postBought(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
     const { ids, bought } = z.object({
-      ids: z.array(z.string().uuid()).min(1),
+      ids: z.array(z.uuid()).min(1),
       bought: z.boolean().default(true),
     }).parse(req.body);
     const items = await setItemsBought(userId, ids, bought);

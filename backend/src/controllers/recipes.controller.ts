@@ -178,7 +178,7 @@ export async function reorderImagesHandler(req: Request, res: Response): Promise
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { imageIds } = z.object({ imageIds: z.array(z.string().uuid()) }).parse(req.body);
+    const { imageIds } = z.object({ imageIds: z.array(z.uuid()) }).parse(req.body);
     await reorderImages(recipe.id, imageIds);
     res.status(204).send();
   } catch (err) {
@@ -223,7 +223,7 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { imageId } = z.object({ imageId: z.string().uuid() }).parse(req.body);
+    const { imageId } = z.object({ imageId: z.uuid() }).parse(req.body);
     const image = await prisma.image.findUnique({ where: { id: imageId } });
     if (!image || image.recipeId !== recipe.id) { res.status(404).json({ error: 'Image not found' }); return; }
     await prisma.recipe.update({ where: { id: recipe.id }, data: { coverImageId: imageId } });
