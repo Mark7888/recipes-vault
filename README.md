@@ -11,6 +11,7 @@ A self-hosted, invite-only Progressive Web App for capturing and organizing reci
 - **In your language** — the assistant chats, writes and parses in the language you pick under *Preferences*, taken from your browser when you register
 - **Edit after capture** — correct or refine what was extracted before saving; paste a screenshot straight in with *From Clipboard* next to *Upload Image*
 - **Sections in a recipe** — split the ingredients and the steps into parts ("For the bun", "For the patty") with headings that drag around the list like any other row; the AI writes and reads them too
+- **Cook it 2× — or 10×** — a multiplier above the ingredients (0.5×, 1×, 2×, 3×, or anything you type) rescales every amount and the serving count on the spot, fractions and ranges included, and it is the scaled amounts that go to your shopping list. Amounts with no number in them ("a pinch") are left alone
 - **Organize with tags** — tag recipes and filter by tag in your library
 - **Collections** — group recipes into named collections and share them with friends or family (Owner / Editor / Viewer roles); leave any collection shared with you from *Manage Collection*
 - **Your recipe book** — every account has one collection it never has to fill: *"alice's Recipe Book"* holds everything you own, the moment you capture it. Share it with someone and they read your whole library as it grows — Viewers only, and it never changes hands

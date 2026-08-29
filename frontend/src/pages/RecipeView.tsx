@@ -7,7 +7,9 @@ import { useRecipe, useDeleteRecipe, useDuplicateRecipe } from '../hooks/useReci
 import { recipesApi } from '../api/recipes.api';
 import { useAuthStore } from '../store/authStore';
 import { IngredientList } from '../components/recipe/IngredientList';
+import { RecipeScaler } from '../components/recipe/RecipeScaler';
 import { isSection } from '../utils/sections';
+import { formatAmount, formatScale, scaleAmount } from '../utils/amounts';
 import type { Ingredient } from '../types';
 import { useAddShoppingItems } from '../hooks/useShoppingList';
 import { StepList } from '../components/recipe/StepList';
@@ -30,7 +32,16 @@ export default function RecipeView() {
   // Ingredients checked as "already have at home" — the rest go to the shopping list
   const [haveAtHome, setHaveAtHome] = useState<Set<number>>(new Set());
   const [addedToList, setAddedToList] = useState(false);
+  // How many times the recipe is being made; scales the amounts on screen and
+  // the ones that go to the shopping list.
+  const [scale, setScale] = useState(1);
   const addShoppingItems = useAddShoppingItems();
+
+  const changeScale = (next: number) => {
+    setScale(next);
+    // The list now holds the old amounts, so offer the add again.
+    setAddedToList(false);
+  };
 
   const toggleHaveAtHome = (i: number) => {
     setHaveAtHome((prev) => {
@@ -158,7 +169,12 @@ export default function RecipeView() {
         <HStack gap={4} color="fg.muted" fontSize="sm" flexWrap="wrap">
           {recipe.prepTime && <Text>{recipe.prepTime} min prep</Text>}
           {recipe.cookTime && <Text>{recipe.cookTime} min cook</Text>}
-          {recipe.servings && <Text>{recipe.servings} servings</Text>}
+          {recipe.servings && (
+            <Text color={scale === 1 ? undefined : 'green.fg'}>
+              {formatAmount(recipe.servings * scale)} servings
+              {scale !== 1 && ` (${formatScale(scale)}× of ${recipe.servings})`}
+            </Text>
+          )}
         </HStack>
 
         <HStack w="full" flexWrap="wrap" gap={2}>
@@ -174,8 +190,11 @@ export default function RecipeView() {
         )}
 
         <Box w="full" borderTopWidth="1px" pt={6}>
-          <Heading size="md" mb={4}>Ingredients</Heading>
-          <IngredientList ingredients={recipe.ingredients} checked={haveAtHome} onToggle={toggleHaveAtHome} />
+          <Flex justify="space-between" align="center" mb={4} gap={3} flexWrap="wrap">
+            <Heading size="md">Ingredients</Heading>
+            <RecipeScaler scale={scale} onChange={changeScale} />
+          </Flex>
+          <IngredientList ingredients={recipe.ingredients} checked={haveAtHome} onToggle={toggleHaveAtHome} scale={scale} />
           {recipe.ingredients.some((entry) => !isSection(entry)) && (() => {
             // Headings are not shopping, and never carry a check of their own.
             const missing = recipe.ingredients.filter(
@@ -185,7 +204,7 @@ export default function RecipeView() {
               await addShoppingItems.mutateAsync(
                 missing.map((ing) => ({
                   name: ing.name,
-                  amount: ing.amount,
+                  amount: scaleAmount(ing.amount, scale),
                   unit: ing.unit,
                   recipeId: recipe.id,
                 }))
@@ -195,7 +214,8 @@ export default function RecipeView() {
             return (
               <VStack align="start" gap={1} mt={4}>
                 <Text fontSize="xs" color="fg.muted">
-                  Check what you already have at home, then add the rest to your shopping list.
+                  Check what you already have at home, then add the rest to your shopping list
+                  {scale !== 1 && ` — at ${formatScale(scale)}× the amounts above`}.
                 </Text>
                 <Button
                   size="sm"
@@ -205,7 +225,9 @@ export default function RecipeView() {
                   loading={addShoppingItems.isPending}
                   onClick={handleAddToShoppingList}
                 >
-                  {addedToList ? <><CheckIcon size={14} /> Added to shopping list</> : <><CartIcon size={14} /> Add {missing.length} missing to shopping list</>}
+                  {addedToList
+                    ? <><CheckIcon size={14} /> Added to shopping list</>
+                    : <><CartIcon size={14} /> Add {missing.length} missing to shopping list{scale !== 1 ? ` (${formatScale(scale)}×)` : ''}</>}
                 </Button>
               </VStack>
             );
