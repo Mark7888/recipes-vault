@@ -2,6 +2,7 @@ import { VStack, HStack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 import type { IngredientEntry } from '../../types';
 import { isSection } from '../../utils/sections';
+import { scaleAmount } from '../../utils/amounts';
 import { Checkbox } from '../ui/Checkbox';
 
 interface Props {
@@ -12,9 +13,11 @@ interface Props {
   // valid however the recipe is grouped.
   checked?: Set<number>;
   onToggle?: (index: number) => void;
+  // Multiplier the recipe is being cooked at; amounts are shown scaled by it.
+  scale?: number;
 }
 
-export function IngredientList({ ingredients, checked: checkedProp, onToggle }: Props) {
+export function IngredientList({ ingredients, checked: checkedProp, onToggle, scale = 1 }: Props) {
   const [internalChecked, setInternalChecked] = useState<Set<number>>(new Set());
   const checked = checkedProp ?? internalChecked;
 
@@ -54,7 +57,7 @@ export function IngredientList({ ingredients, checked: checkedProp, onToggle }: 
               textDecoration={checked.has(i) ? 'line-through' : 'none'}
               color={checked.has(i) ? 'fg.subtle' : 'fg'}
             >
-              {[entry.amount, entry.unit, entry.name].filter(Boolean).join(' ')}
+              {[scaleAmount(entry.amount, scale), entry.unit, entry.name].filter(Boolean).join(' ')}
             </Text>
           </HStack>
         )
