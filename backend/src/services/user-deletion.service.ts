@@ -149,6 +149,7 @@ async function deleteOrphanRecipes(userId: string): Promise<void> {
 async function finalizeUser(userId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.passwordResetLink.deleteMany({ where: { userId } });
+    await tx.apiKey.deleteMany({ where: { userId } });
     await tx.shoppingListItem.deleteMany({ where: { userId } });
     await tx.shoppingHistoryEntry.deleteMany({ where: { userId } });
 

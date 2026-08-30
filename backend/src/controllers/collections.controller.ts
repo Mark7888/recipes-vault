@@ -1,6 +1,4 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
-import { Role } from '@prisma/client';
 import {
   createCollection,
   getCollectionsForUser,
@@ -20,6 +18,14 @@ import {
   rejectOwnershipTransfer,
   getIncomingTransfersForUser,
 } from '../services/collections.service.js';
+import {
+  addCollectionRecipeSchema,
+  addMemberSchema,
+  createCollectionSchema,
+  renameCollectionSchema,
+  transferOwnershipSchema,
+  updateMemberRoleSchema,
+} from '../schemas/collections.schema.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 export async function listCollections(req: Request, res: Response): Promise<void> {
@@ -31,7 +37,7 @@ export async function listCollections(req: Request, res: Response): Promise<void
 export async function createNewCollection(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { name } = z.object({ name: z.string().min(1).max(100) }).parse(req.body);
+    const { name } = createCollectionSchema.parse(req.body);
     const collection = await createCollection(name, userId);
     res.status(201).json(collection);
   } catch (err) {
@@ -52,7 +58,7 @@ export async function getCollection(req: Request, res: Response): Promise<void> 
 export async function renameCollectionHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   try {
-    const { name } = z.object({ name: z.string().min(1).max(100) }).parse(req.body);
+    const { name } = renameCollectionSchema.parse(req.body);
     const collection = await renameCollection(id, name);
     res.json(collection);
   } catch (err) {
@@ -73,10 +79,7 @@ export async function deleteCollectionHandler(req: Request, res: Response): Prom
 export async function addMemberHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   try {
-    const { userId, role } = z.object({
-      userId: z.uuid(),
-      role: z.enum(Role),
-    }).parse(req.body);
+    const { userId, role } = addMemberSchema.parse(req.body);
     const membership = await addMember(id, userId, role);
     res.status(201).json(membership);
   } catch (err) {
@@ -88,7 +91,7 @@ export async function updateMemberRoleHandler(req: Request, res: Response): Prom
   const id = req.params.id as string;
   const userId = req.params.userId as string;
   try {
-    const { role } = z.object({ role: z.enum(Role) }).parse(req.body);
+    const { role } = updateMemberRoleSchema.parse(req.body);
     const membership = await updateMemberRole(id, userId, role);
     res.json(membership);
   } catch (err) {
@@ -128,7 +131,7 @@ export async function transferOwnershipHandler(req: Request, res: Response): Pro
   const userId = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
   try {
-    const { toUserId } = z.object({ toUserId: z.uuid() }).parse(req.body);
+    const { toUserId } = transferOwnershipSchema.parse(req.body);
     const transfer = await initiateOwnershipTransfer(id, userId, toUserId);
     res.status(201).json(transfer);
   } catch (err) {
@@ -173,7 +176,7 @@ export async function addRecipeHandler(req: Request, res: Response): Promise<voi
   const addedById = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
   try {
-    const { recipeId } = z.object({ recipeId: z.uuid() }).parse(req.body);
+    const { recipeId } = addCollectionRecipeSchema.parse(req.body);
     const entry = await addRecipeToCollection(id, recipeId, addedById);
     res.status(201).json(entry);
   } catch (err) {

@@ -17,11 +17,11 @@ import {
   listRecipeSites,
   shareRecipe,
 } from '../controllers/recipes.controller.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireUser } from '../middleware/auth.middleware.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 const router = Router();
-router.use(authMiddleware);
+router.use(requireUser);
 router.get('/', listRecipes);
 router.post('/', postRecipe);
 router.get('/sites', listRecipeSites);

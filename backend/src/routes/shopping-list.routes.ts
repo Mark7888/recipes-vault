@@ -11,10 +11,10 @@ import {
   postReaddHistory,
   removeHistory,
 } from '../controllers/shopping-list.controller.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireUser } from '../middleware/auth.middleware.js';
 
 const router = Router();
-router.use(authMiddleware);
+router.use(requireUser);
 router.get('/', listItems);
 router.post('/items', postItem);
 router.post('/items/bulk', postItemsBulk);

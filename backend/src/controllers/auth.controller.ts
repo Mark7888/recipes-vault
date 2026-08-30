@@ -12,6 +12,7 @@ import { consumeInviteLink, getInviteTokenStatus } from '../services/invite.serv
 import { ensureDefaultCollection } from '../services/collections.service.js';
 import { consumePasswordResetLink } from '../services/password-reset.service.js';
 import { DEFAULT_AI_LANGUAGE, resolveAcceptLanguage, resolveLanguageTag } from '../services/ai/languages.js';
+import { loginSchema, registerSchema, resetPasswordSchema } from '../schemas/auth.schema.js';
 import { z } from 'zod';
 
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
@@ -22,28 +23,6 @@ const COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 };
-
-const registerSchema = z.object({
-  token: z.string().min(1),
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/),
-  password: z.string().min(8),
-  /**
-   * The browser's own language, so the AI assistant starts out answering in it.
-   * Anything unrecognized (or missing, on a client that does not send it) falls
-   * back to the request header and then to English.
-   */
-  language: z.string().max(35).optional(),
-});
-
-const loginSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-});
-
-const resetPasswordSchema = z.object({
-  token: z.string().min(1),
-  newPassword: z.string().min(8),
-});
 
 export async function checkInvite(req: Request, res: Response): Promise<void> {
   const params = z.object({ token: z.string().min(1) }).safeParse(req.params);

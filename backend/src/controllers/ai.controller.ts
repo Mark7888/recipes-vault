@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
@@ -11,70 +10,20 @@ import { findOrCreateTags } from '../services/tags.service.js';
 import { fetchPage, parseHtml } from '../services/parser-dispatch.service.js';
 import { extractPageText } from '../services/page-text.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
-import { AI_LANGUAGES, DEFAULT_AI_LANGUAGE, isSupportedLanguage } from '../services/ai/languages.js';
+import { AI_LANGUAGES, DEFAULT_AI_LANGUAGE } from '../services/ai/languages.js';
+import {
+  aiCaptureSchema,
+  aiLanguageSchema,
+  aiReworkSchema,
+  conversationSchema,
+  MAX_IMAGES_TOTAL,
+} from '../schemas/ai.schema.js';
 import { isSection } from '../utils/sections.js';
-import { createRateLimiter } from '../utils/rate-limit.js';
 import type { AiRequest, AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
-
-// The conversation lives in the browser and is replayed on every turn, so these
-// caps are what keep a single request (and its token bill) bounded.
-const MAX_MESSAGES = 40;
-const MAX_CONTENT_CHARS = 8000;
-const MAX_IMAGES_PER_MESSAGE = 4;
-const MAX_IMAGES_TOTAL = 6;
-const MAX_IMAGE_CHARS = 1_200_000; // ≈ 900 KB of image data once decoded
-
-const dataUrlSchema = z
-  .string()
-  .max(MAX_IMAGE_CHARS, 'One of the images is too large. Please attach a smaller screenshot.')
-  .regex(/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/]+={0,2}$/, 'Unsupported image format.');
-
-const messageSchema = z.object({
-  role: z.enum(['user', 'assistant']),
-  content: z.string().max(MAX_CONTENT_CHARS),
-  images: z.array(dataUrlSchema).max(MAX_IMAGES_PER_MESSAGE).optional(),
-});
-
-const conversationSchema = z.object({
-  messages: z.array(messageSchema).min(1).max(MAX_MESSAGES),
-});
 
 // Below this there is nothing on the page worth spending a request on — the
 // page needs JavaScript, or a login, or simply is not a recipe.
 const MIN_PAGE_CHARS = 200;
-
-// Long enough for a real request ("translate to German and scale it to 8
-// servings"), short enough that it cannot become the bulk of the prompt.
-const MAX_INSTRUCTION_CHARS = 500;
-
-const instructionSchema = z
-  .string()
-  .trim()
-  .min(1, 'Write what the AI should do with this recipe.')
-  .max(MAX_INSTRUCTION_CHARS, `Keep the instructions under ${MAX_INSTRUCTION_CHARS} characters.`);
-
-const captureSchema = z.object({
-  url: z.string().url('That does not look like a valid URL.').max(2048),
-  /**
-   * Set when the AI is re-parsing a page the site parsers already captured:
-   * the result then replaces that recipe instead of leaving a half-empty
-   * duplicate behind. Must belong to the caller.
-   */
-  recipeId: z.uuid().optional(),
-  /** Extra wording from the user, e.g. "translate it to German". */
-  instructions: instructionSchema.optional(),
-});
-
-const languageSchema = z.object({
-  language: z.string().max(35).refine(isSupportedLanguage, 'That is not a language the assistant offers.'),
-});
-
-const reworkSchema = z.object({
-  recipeId: z.uuid(),
-  instructions: instructionSchema,
-});
-
-const rateLimiter = createRateLimiter(env.AI_RATE_LIMIT_PER_MINUTE, 60_000);
 
 function sendAiError(res: Response, err: unknown): void {
   if (err instanceof AiError) {
@@ -121,11 +70,6 @@ function toEntries<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function enforceRateLimit(userId: string): void {
-  const { allowed, retryAfterSeconds } = rateLimiter.check(userId);
-  if (!allowed) throw aiErrors.rateLimited(retryAfterSeconds, 'per-user limit');
-}
-
 /**
  * Tells the frontend whether to offer the assistant at all. Auth-only on
  * purpose — a user without access still needs to be told why it is missing.
@@ -159,7 +103,7 @@ export function getAiLanguages(_req: Request, res: Response): void {
  */
 export async function patchAiLanguage(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
-  const parsed = languageSchema.safeParse(req.body);
+  const parsed = aiLanguageSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid language.' });
     return;
@@ -174,13 +118,11 @@ export async function patchAiLanguage(req: Request, res: Response): Promise<void
 }
 
 export async function postAiChat(req: Request, res: Response): Promise<void> {
-  const userId = (req as AuthenticatedRequest).userId;
   try {
     const messages = readConversation(req.body);
     if (messages[messages.length - 1].role !== 'user') {
       throw aiErrors.invalidRequest('The last message must come from you.');
     }
-    enforceRateLimit(userId);
 
     const { content, truncated } = await continueChat(messages, (req as AiRequest).aiLanguage);
     res.json({ message: { role: 'assistant', content }, truncated });
@@ -199,7 +141,6 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
   try {
     const messages = readConversation(req.body);
     if (!messages.some((m) => m.role === 'assistant')) throw aiErrors.noRecipe();
-    enforceRateLimit(userId);
 
     const extracted = await extractRecipe(messages, (req as AiRequest).aiLanguage);
 
@@ -240,7 +181,7 @@ export async function postAiRecipe(req: Request, res: Response): Promise<void> {
 export async function postAiCapture(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const body = captureSchema.safeParse(req.body);
+    const body = aiCaptureSchema.safeParse(req.body);
     if (!body.success) throw aiErrors.invalidRequest(body.error.issues[0]?.message ?? 'Invalid request.');
     const { url, recipeId, instructions } = body.data;
 
@@ -250,8 +191,6 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
     if (recipeId && (!target || target.ownerId !== userId)) {
       throw aiErrors.invalidRequest('That recipe is not available to parse again.');
     }
-
-    enforceRateLimit(userId);
 
     let page;
     try {
@@ -326,7 +265,7 @@ export async function postAiCapture(req: Request, res: Response): Promise<void> 
 export async function postAiRework(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const body = reworkSchema.safeParse(req.body);
+    const body = aiReworkSchema.safeParse(req.body);
     if (!body.success) throw aiErrors.invalidRequest(body.error.issues[0]?.message ?? 'Invalid request.');
     const { recipeId, instructions } = body.data;
 
@@ -344,8 +283,6 @@ export async function postAiRework(req: Request, res: Response): Promise<void> {
     if (![...ingredients, ...steps].some((entry) => !isSection(entry))) {
       throw aiErrors.invalidRequest('This recipe has no ingredients or steps yet, so there is nothing to rework.');
     }
-
-    enforceRateLimit(userId);
 
     const extracted = await reworkRecipe(
       {

@@ -14,6 +14,10 @@ import sharedRoutes from './routes/shared.routes.js';
 import shoppingListRoutes from './routes/shopping-list.routes.js';
 import captureRoutes, { captureAndCreateRecipe, isCaptureIncomplete } from './routes/capture.routes.js';
 import aiRoutes from './routes/ai.routes.js';
+import apiKeysRoutes from './routes/api-keys.routes.js';
+import { apiRateLimit } from './middleware/rate-limit.middleware.js';
+import { openApiDocument } from './openapi/document.js';
+import { env } from './config/env.js';
 import { verifyRefreshToken } from './services/auth.service.js';
 import { getRecipeByShareToken } from './services/recipes.service.js';
 import { appPreview, sendAppHtml, sharedRecipePreview } from './services/link-preview.service.js';
@@ -27,6 +31,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function createApp() {
   const app = express();
 
+  // Rate limiting reads the client IP, so the app has to know how many proxies
+  // sit in front of it — see TRUST_PROXY_HOPS.
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
+
   app.use(requestLogger);
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
@@ -35,17 +43,34 @@ export function createApp() {
   // Serve uploaded images
   app.use('/images', express.static(process.env.IMAGES_DIR || './data/images'));
 
-  // API routes
-  app.use('/api/auth', authRoutes);
-  app.use('/api/admin', adminRoutes);
+  // The machine-readable contract for everything below, and what the /api-docs
+  // page renders. Public: it describes how to authenticate, so it has to be
+  // readable before you have.
+  app.get('/api/openapi.json', (_req: Request, res: Response) => {
+    res.json(openApiDocument);
+  });
+
+  // API routes. Routers that serve a signed-in user mount `requireUser`
+  // themselves, which authenticates and charges the account's rate-limit
+  // budget; the anonymous ones below take the same limiter keyed by IP.
+  app.use('/api/auth', apiRateLimit, authRoutes);
+  app.use('/api/admin', apiRateLimit, adminRoutes);
   app.use('/api/recipes', recipesRoutes);
   app.use('/api/collections', collectionsRoutes);
   app.use('/api/tags', tagsRoutes);
   app.use('/api/users', usersRoutes);
-  app.use('/api/shared', sharedRoutes);
+  app.use('/api/api-keys', apiKeysRoutes);
+  app.use('/api/shared', apiRateLimit, sharedRoutes);
   app.use('/api/shopping-list', shoppingListRoutes);
   app.use('/api/capture', captureRoutes);
   app.use('/api/ai', aiRoutes);
+
+  // Anything under /api that no router claimed is a 404 in JSON, not the SPA
+  // shell — an API client should never have to parse HTML to learn it got the
+  // path wrong.
+  app.use('/api', (_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found' });
+  });
 
   // Serve frontend static assets before the capture catch-all: root-level
   // files like /favicon.ico or /manifest.webmanifest would otherwise match

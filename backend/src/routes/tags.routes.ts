@@ -6,10 +6,10 @@ import {
   mergeTagHandler,
   deleteTagHandler,
 } from '../controllers/tags.controller.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireUser } from '../middleware/auth.middleware.js';
 
 const router = Router();
-router.use(authMiddleware);
+router.use(requireUser);
 router.get('/', listTags);
 router.get('/all', listAllTagsHandler);
 router.patch('/:id', renameTagHandler);

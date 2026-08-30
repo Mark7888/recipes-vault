@@ -17,6 +17,20 @@ const envSchema = z.object({
   FETCH_TIMEOUT_MS: z.coerce.number().default(10000),
   FETCH_MAX_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB
 
+  // ── Rate limiting ──
+  // Requests per minute per account (a user's browser session and every API
+  // key they own share this one budget). Unauthenticated callers are counted
+  // by IP instead.
+  API_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(240),
+  // Per-IP budget for login / register / password reset.
+  AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(20),
+  // How many reverse proxies sit in front of the app. Express reads the
+  // client IP from the last hop it is told to trust, so this must match the
+  // deployment: 1 for the usual single nginx, 0 when the app is exposed
+  // directly (trusting a proxy that is not there would let anyone spoof
+  // X-Forwarded-For and walk around the per-IP limits).
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
+
   // ── AI recipe assistant (OpenRouter) ──
   // Leaving OPENROUTER_API_KEY empty disables the assistant entirely: the API
   // reports it as unavailable and the frontend hides the chat option.

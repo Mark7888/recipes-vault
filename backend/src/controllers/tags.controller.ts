@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { searchTags, listAllTags, renameTag, mergeTag, deleteTag } from '../services/tags.service.js';
+import { mergeTagSchema, renameTagSchema } from '../schemas/tags.schema.js';
 
 export async function listTags(req: Request, res: Response): Promise<void> {
   const search = (req.query.search as string) || '';
@@ -16,7 +16,7 @@ export async function listAllTagsHandler(_req: Request, res: Response): Promise<
 export async function renameTagHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   try {
-    const { name } = z.object({ name: z.string().min(1).max(50) }).parse(req.body);
+    const { name } = renameTagSchema.parse(req.body);
     const tag = await renameTag(id, name);
     res.json(tag);
   } catch (err) {
@@ -27,7 +27,7 @@ export async function renameTagHandler(req: Request, res: Response): Promise<voi
 export async function mergeTagHandler(req: Request, res: Response): Promise<void> {
   const id = req.params.id as string;
   try {
-    const { targetId } = z.object({ targetId: z.uuid() }).parse(req.body);
+    const { targetId } = mergeTagSchema.parse(req.body);
     const tag = await mergeTag(id, targetId);
     res.json(tag);
   } catch (err) {

@@ -1,7 +1,23 @@
 import type { Request } from 'express';
 
+/**
+ * Who a request is acting as, and how it proved it. `userId` is all any
+ * handler needs — a session and an API key produce the same one, which is
+ * what makes the two entry points share every authorization check. `kind` is
+ * only ever consulted where the credential itself matters (see
+ * `requireSession`).
+ */
+export interface Principal {
+  userId: string;
+  kind: 'session' | 'api-key';
+  /** Set only for API-key requests, for logging and the rate limiter. */
+  apiKeyId?: string;
+  apiKeyName?: string;
+}
+
 export interface AuthenticatedRequest extends Request {
   userId: string;
+  auth: Principal;
 }
 
 export interface AdminRequest extends Request {
@@ -12,8 +28,7 @@ export interface AdminRequest extends Request {
  * What the AI gate leaves behind for the handlers past it: the user is known to
  * have access, and the language they want answers in has already been read.
  */
-export interface AiRequest extends Request {
-  userId: string;
+export interface AiRequest extends AuthenticatedRequest {
   aiLanguage: string;
 }
 
