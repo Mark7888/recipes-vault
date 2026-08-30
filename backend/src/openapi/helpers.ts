@@ -53,7 +53,6 @@ export const errors = {
   unauthorized: { $ref: '#/components/responses/Unauthorized' },
   forbidden: { $ref: '#/components/responses/Forbidden' },
   notFound: { $ref: '#/components/responses/NotFound' },
-  conflict: { $ref: '#/components/responses/Conflict' },
   tooManyRequests: { $ref: '#/components/responses/TooManyRequests' },
   aiFailure: { $ref: '#/components/responses/AiFailure' },
 } as const;

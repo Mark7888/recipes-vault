@@ -2,8 +2,6 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { schemaRegistry } from './registry.js';
 import { json, type Json } from './helpers.js';
-import { authPaths } from './paths/auth.paths.js';
-import { apiKeyPaths } from './paths/api-keys.paths.js';
 import { recipePaths } from './paths/recipes.paths.js';
 import { collectionPaths } from './paths/collections.paths.js';
 import { shoppingListPaths, tagPaths, userPaths } from './paths/misc.paths.js';
@@ -19,16 +17,15 @@ import '../schemas/collections.schema.js';
 import '../schemas/shopping-list.schema.js';
 import '../schemas/tags.schema.js';
 import '../schemas/users.schema.js';
-import '../schemas/auth.schema.js';
 import '../schemas/ai.schema.js';
-import '../schemas/api-keys.schema.js';
 
 const DESCRIPTION = `
 The same API the RecipeVault web app runs on.
 
 ## Authentication
 
-Create a key under **Settings → API keys**, then send it on every request:
+Create a key under **Settings → API keys** in the web app, then send it on every
+request:
 
 \`\`\`
 Authorization: Bearer rv_your_token_here
@@ -39,17 +36,14 @@ Authorization: Bearer rv_your_token_here
 A key acts as the user who created it and has exactly that user's permissions —
 the same recipes, the same collection roles, the same access (or lack of it) to
 the AI assistant. There is nothing a key can reach that its owner cannot, and
-nothing its owner can reach that the key cannot, with two deliberate exceptions:
-a key cannot create or revoke API keys, and it cannot change the account's
-username or password. Both of those need a signed-in browser session, so that a
-leaked key can always be taken away.
+nothing its owner can reach that the key cannot.
 
 Keys carry a name and, optionally, an expiry. Revoking one takes effect
 immediately.
 
-The browser app authenticates differently — a short-lived JWT from
-\`POST /auth/login\` plus a refresh cookie — and every endpoint below accepts
-either credential.
+Signing in and managing keys are not part of this API. They happen in the web
+app, over a browser session, so that a leaked key can never mint another key or
+change the password of the account it belongs to.
 
 ## Rate limiting
 
@@ -61,7 +55,7 @@ of your API keys:
 | Everything under \`/api\` | ${env.API_RATE_LIMIT_PER_MINUTE} requests/minute |
 | The \`/ai/*\` endpoints that spend credits | ${env.AI_RATE_LIMIT_PER_MINUTE} requests/minute |
 
-Sign-in and registration are limited separately, per IP address.
+Sign-in and registration have their own per-IP limit, in the web app.
 
 Every response carries \`RateLimit-Limit\`, \`RateLimit-Remaining\` and
 \`RateLimit-Reset\` (seconds). A rejected request answers **429** with
@@ -75,9 +69,10 @@ Every response carries \`RateLimit-Limit\`, \`RateLimit-Remaining\` and
 - Timestamps are RFC 3339 strings, and IDs are UUIDs.
 - Image paths are relative to \`/images/\`.
 
-The admin endpoints (\`/api/admin/*\`) are not part of this contract: they
-authenticate with the server's own admin credentials rather than a user's, and
-API keys cannot reach them.
+Two other route families are likewise outside this contract and unreachable
+with a key: \`/api/auth/*\`, which exists for the web app's own sign-in, and
+\`/api/admin/*\`, which authenticates with the server's own admin credentials
+rather than a user's.
 `.trim();
 
 /**
@@ -107,7 +102,6 @@ const responses: Json = {
   Unauthorized: { description: 'No credential, or one that is expired, revoked or unknown.', content: json('Error') },
   Forbidden: { description: 'Authenticated, but not allowed to do this.', content: json('Error') },
   NotFound: { description: 'No such resource, or none you can see.', content: json('Error') },
-  Conflict: { description: 'The request collides with something that already exists.', content: json('Error') },
   TooManyRequests: {
     description: 'Rate limited. Wait the number of seconds in `Retry-After`.',
     headers: {
@@ -135,8 +129,6 @@ export const openApiDocument = {
     },
   ],
   tags: [
-    { name: 'Auth', description: 'Sessions for the web app. API clients use a key instead.' },
-    { name: 'API keys', description: 'Create and revoke the tokens this API authenticates with.' },
     { name: 'Recipes', description: 'The library: recipes, their images, tags and share links.' },
     { name: 'Capture', description: 'Turn a recipe URL into a saved recipe.' },
     { name: 'Collections', description: 'Grouping and sharing recipes, with Owner / Editor / Viewer roles.' },
@@ -153,8 +145,7 @@ export const openApiDocument = {
       bearerAuth: {
         type: 'http',
         scheme: 'bearer',
-        description:
-          'An API key (`rv_…`) or a session access token from `POST /auth/login`. Both are accepted here.',
+        description: 'An API key (`rv_…`), created under Settings → API keys in the web app.',
       },
       apiKeyHeader: {
         type: 'apiKey',
@@ -167,8 +158,6 @@ export const openApiDocument = {
     responses,
   },
   paths: {
-    ...authPaths,
-    ...apiKeyPaths,
     ...userPaths,
     ...recipePaths,
     ...collectionPaths,

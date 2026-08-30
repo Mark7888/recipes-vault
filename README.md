@@ -180,7 +180,7 @@ pages are public: how to authenticate should be readable before you have.
 
 ### Getting a key
 
-**Settings → API keys**. A key needs a name, and takes an expiry — 30 days, 90
+**Settings → API keys** in the web app. A key needs a name, and takes an expiry — 30 days, 90
 days, a year, or none at all. The token is shown once, on creation, and is
 stored only as a SHA-256 hash, so a copy of your database yields nobody a
 working key. Lost it? Revoke it and make another.
@@ -208,16 +208,22 @@ Exactly what its owner can do — the same recipes, the same collection roles
 (Owner / Editor / Viewer), and the same access to the AI assistant. If an admin
 has not enabled AI for your account, your key gets the same `403` your browser
 does. There is nothing a key reaches that you cannot, and nothing you reach that
-a key cannot, with two deliberate exceptions:
-
-- a key cannot create or revoke API keys, and
-- a key cannot change your username or password.
-
-Both need a signed-in session, so a leaked key can always be taken away and can
-never renew itself. The admin endpoints (`/api/admin/*`) authenticate with the
-server's own credentials and are outside the API entirely.
+a key cannot.
 
 Revoking takes effect on the key's very next request.
+
+### What is not in the API
+
+Three route families are outside the published contract:
+
+- **`/api/api-keys/*`** — minting and revoking keys is the web app's job, over a
+  browser session. A key presenting itself here gets a `403`, so a leaked key can
+  never mint another one or outlive being taken away.
+- **`/api/auth/*`** — sign-in, registration and password resets exist for the web
+  app itself. `PATCH /api/users/me`, which changes your username or password, is
+  session-only for the same reason.
+- **`/api/admin/*`** — authenticates with the server's own admin credentials
+  rather than a user's, so no key reaches it at all.
 
 ### Rate limiting
 
@@ -228,7 +234,7 @@ draw on the same allowance, so a key cannot buy extra throughput:
 |-------|---------|---------|
 | Everything under `/api` | 240 req/min | `API_RATE_LIMIT_PER_MINUTE` |
 | The AI endpoints that spend credits | 20 req/min | `AI_RATE_LIMIT_PER_MINUTE` |
-| Login, registration, password reset (per IP) | 20 req/min | `AUTH_RATE_LIMIT_PER_MINUTE` |
+| The web app's login, registration and password reset (per IP) | 20 req/min | `AUTH_RATE_LIMIT_PER_MINUTE` |
 
 Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and
 `RateLimit-Reset`; a rejected one answers `429` with `Retry-After`. Counters are

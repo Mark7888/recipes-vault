@@ -15,6 +15,9 @@ import { component } from '../openapi/registry.js';
  */
 export const dateTime = () => z.string().meta({ format: 'date-time' });
 
+/** The bare acknowledgement a few endpoints answer with. */
+export const okSchema = component('Ok', z.object({ ok: z.boolean() }));
+
 export const errorSchema = component(
   'Error',
   z.object({
