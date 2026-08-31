@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Button, Input, VStack, Text } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usersApi } from '../../api/users.api';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/authStore';
@@ -118,6 +118,13 @@ export function SettingsPanel() {
         </VStack>
       </form>
       <Box borderTopWidth="1px" pt={4}>
+        <Link to="/settings/api-keys" style={{ width: '100%', display: 'block' }}>
+          <Button variant="outline" size="sm" w="full">
+            API Keys
+          </Button>
+        </Link>
+      </Box>
+      <Box>
         <Button variant="outline" colorPalette="red" size="sm" w="full" onClick={handleLogout}>
           Logout
         </Button>

@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { captureUrl } from '../services/parser-dispatch.service.js';
 import { createRecipe, setRecipeTags } from '../services/recipes.service.js';
 import { findOrCreateTags } from '../services/tags.service.js';
 import { downloadImagesInBackground } from '../services/image-storage.service.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireUser } from '../middleware/auth.middleware.js';
+import { captureRequestSchema } from '../schemas/recipes.schema.js';
 import { isSection } from '../utils/sections.js';
 import type { AuthenticatedRequest, IngredientEntry, InstructionEntry } from '../types/index.js';
 
@@ -53,10 +53,10 @@ export async function handleCapture(url: string, userId: string, res: Response):
   res.status(201).json({ recipeId: recipe.id, incomplete: isCaptureIncomplete(recipe) });
 }
 
-router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.post('/', requireUser, async (req: Request, res: Response): Promise<void> => {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { url } = z.object({ url: z.url() }).parse(req.body);
+    const { url } = captureRequestSchema.parse(req.body);
     await handleCapture(url, userId, res);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

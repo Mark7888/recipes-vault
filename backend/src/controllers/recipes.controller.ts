@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import {
   createRecipe,
   getRecipeById,
@@ -19,39 +18,17 @@ import { getCollectionIdsContainingRecipe } from '../services/collections.servic
 import { findOrCreateTags } from '../services/tags.service.js';
 import { saveImage, saveImageRecord, deleteImageFile, reorderImages } from '../services/image-storage.service.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  createRecipeSchema,
+  reorderImagesSchema,
+  setCoverImageSchema,
+  setRecipeTagsSchema,
+  updateRecipeSchema,
+} from '../schemas/recipes.schema.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 const SORT_OPTIONS = ['newest', 'oldest', 'title-asc', 'title-desc', 'prep-time'] as const;
 const ORIGIN_OPTIONS = ['MANUAL', 'PARSED', 'PARSED_EDITED', 'AI_PARSED', 'AI_GENERATED', 'UNKNOWN'] as const;
-
-/**
- * The editable half of a recipe. Spelled out rather than passed through, so a
- * client cannot reach past the form into columns it has no business writing —
- * ownerId, the share token, or the origin the server records itself.
- */
-// A section heading can sit anywhere in either list; rows saved before
-// sections existed carry no `type`, so only the heading is discriminated.
-const sectionSchema = z.object({ type: z.literal('section'), title: z.string() });
-const ingredientEntrySchema = z.union([
-  sectionSchema,
-  z.object({ amount: z.string(), unit: z.string(), name: z.string() }),
-]);
-const instructionEntrySchema = z.union([
-  sectionSchema,
-  z.object({ step: z.number().int(), text: z.string() }),
-]);
-
-const updateSchema = z.object({
-  title: z.string().optional(),
-  ingredients: z.array(ingredientEntrySchema).optional(),
-  instructions: z.array(instructionEntrySchema).optional(),
-  prepTime: z.number().int().nonnegative().optional(),
-  cookTime: z.number().int().nonnegative().optional(),
-  servings: z.number().int().nonnegative().optional(),
-  notes: z.string().nullable().optional(),
-  /** The editor's signal that the user changed the draft before saving. */
-  modified: z.boolean().optional(),
-});
 
 export async function listRecipes(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
@@ -78,7 +55,7 @@ export async function listRecipeSites(req: Request, res: Response): Promise<void
 export async function postRecipe(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { title } = z.object({ title: z.string().optional() }).parse(req.body ?? {});
+    const { title } = createRecipeSchema.parse(req.body ?? {});
     const recipe = await createRecipe(userId, {
       title: title?.trim() || 'Untitled Recipe',
       origin: 'MANUAL',
@@ -108,7 +85,7 @@ export async function patchRecipe(req: Request, res: Response): Promise<void> {
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { modified, ...data } = updateSchema.parse(req.body ?? {});
+    const { modified, ...data } = updateRecipeSchema.parse(req.body ?? {});
     // Before the update, so the response already carries the cover it settled on.
     await ensureCoverImage(recipe.id);
     // A parse the user reworked before saving is no longer just a parse. The
@@ -153,7 +130,7 @@ export async function updateTags(req: Request, res: Response): Promise<void> {
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { tags } = z.object({ tags: z.array(z.string()) }).parse(req.body);
+    const { tags } = setRecipeTagsSchema.parse(req.body);
     const tagRecords = await findOrCreateTags(tags);
     const updated = await setRecipeTags(recipe.id, tagRecords.map(t => t.id));
     res.json(updated);
@@ -178,7 +155,7 @@ export async function reorderImagesHandler(req: Request, res: Response): Promise
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { imageIds } = z.object({ imageIds: z.array(z.uuid()) }).parse(req.body);
+    const { imageIds } = reorderImagesSchema.parse(req.body);
     await reorderImages(recipe.id, imageIds);
     res.status(204).send();
   } catch (err) {
@@ -223,7 +200,7 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
   if (!recipe) { res.status(404).json({ error: 'Recipe not found' }); return; }
   if (recipe.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
   try {
-    const { imageId } = z.object({ imageId: z.uuid() }).parse(req.body);
+    const { imageId } = setCoverImageSchema.parse(req.body);
     const image = await prisma.image.findUnique({ where: { id: imageId } });
     if (!image || image.recipeId !== recipe.id) { res.status(404).json({ error: 'Image not found' }); return; }
     await prisma.recipe.update({ where: { id: recipe.id }, data: { coverImageId: imageId } });

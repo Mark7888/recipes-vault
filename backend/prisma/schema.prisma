@@ -31,6 +31,7 @@ model User {
   usedInvite      InviteLink? @relation("InviteUsedBy")
   shoppingItems   ShoppingListItem[]
   shoppingHistory ShoppingHistoryEntry[]
+  apiKeys         ApiKey[]
   sentTransfers     OwnershipTransfer[] @relation("TransferFrom")
   receivedTransfers OwnershipTransfer[] @relation("TransferTo")
   defaultCollection Collection? @relation("DefaultCollection")
@@ -197,6 +198,37 @@ model PasswordResetLink {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
   expiresAt DateTime
+
+  @@index([userId])
+}
+
+// A personal access token for the REST API. The token itself is shown once, at
+// creation, and only its SHA-256 hash is kept — a leaked database gives nobody
+// a working key. A key carries no permissions of its own: every request it
+// authenticates is authorized as its owner, against the same checks the web UI
+// goes through, so what the user can do is exactly what the key can do.
+//
+// expiresAt null means the key never expires; revokedAt is set instead of
+// deleting the row so a revoked key can never be resurrected by a hash
+// collision in a restored backup.
+model ApiKey {
+  id         String    @id @default(uuid())
+  name       String
+  // SHA-256 (hex) of the full token. The token is 256 bits of CSPRNG output,
+  // so it is not guessable and needs no slow password hash — which matters,
+  // because this is verified on every single API request.
+  keyHash    String    @unique
+  // Leading characters of the token, kept so the UI can tell two keys apart
+  // ("rv_3f9a1c2b…") without ever holding the secret.
+  prefix     String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime?
+  // Refreshed at most once a minute per key, so an active key does not cost a
+  // write on every request.
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([userId])
 }

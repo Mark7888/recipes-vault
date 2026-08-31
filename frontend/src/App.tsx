@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { Layout } from './components/layout/Layout';
@@ -16,9 +17,14 @@ import CollectionView from './pages/CollectionView';
 import CollectionEdit from './pages/CollectionEdit';
 import Settings from './pages/Settings';
 import SettingsPreferences from './pages/SettingsPreferences';
+import SettingsApiKeys from './pages/SettingsApiKeys';
 import TagManagement from './pages/TagManagement';
 import ShoppingList from './pages/ShoppingList';
 import NotFound from './pages/NotFound';
+
+// Scalar ships its own renderer and is far larger than the rest of the app, so
+// the docs page is split out — nobody pays for it until they open it.
+const ApiDocs = lazy(() => import('./pages/ApiDocs'));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -40,6 +46,15 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/shared/:token" element={<SharedRecipe />} />
+        {/* Public: how to authenticate should be readable without being signed in. */}
+        <Route
+          path="/api-docs"
+          element={
+            <Suspense fallback={null}>
+              <ApiDocs />
+            </Suspense>
+          }
+        />
         <Route
           path="/"
           element={
@@ -60,6 +75,7 @@ export default function App() {
           <Route path="shopping" element={<ShoppingList />} />
           <Route path="settings" element={<Settings />} />
           <Route path="settings/preferences" element={<SettingsPreferences />} />
+          <Route path="settings/api-keys" element={<SettingsApiKeys />} />
           <Route path="settings/tags" element={<TagManagement />} />
           <Route path="*" element={<NotFound />} />
         </Route>

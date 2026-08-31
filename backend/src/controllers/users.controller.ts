@@ -1,14 +1,8 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword, passwordSchema } from '../services/auth.service.js';
+import { updateCurrentUserSchema } from '../schemas/users.schema.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-
-const patchMeSchema = z.object({
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/).optional(),
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8).optional(),
-});
 
 export async function searchUsers(req: Request, res: Response): Promise<void> {
   const currentUserId = (req as AuthenticatedRequest).userId;
@@ -22,9 +16,23 @@ export async function searchUsers(req: Request, res: Response): Promise<void> {
   res.json(users);
 }
 
+/**
+ * Who the caller is. The web UI already learns this from the login response;
+ * an API client has no login step, so this is how a key finds out whose it is.
+ */
+export async function getMe(req: Request, res: Response): Promise<void> {
+  const userId = (req as AuthenticatedRequest).userId;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, username: true, createdAt: true, aiEnabled: true, aiLanguage: true },
+  });
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  res.json({ ...user, createdAt: user.createdAt.toISOString() });
+}
+
 export async function patchMe(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
-  const parsed = patchMeSchema.safeParse(req.body);
+  const parsed = updateCurrentUserSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { username, currentPassword, newPassword } = parsed.data;

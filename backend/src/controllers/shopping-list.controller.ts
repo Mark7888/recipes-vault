@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import {
   getShoppingList,
   addShoppingItems,
@@ -11,15 +10,13 @@ import {
   readdHistoryEntry,
   deleteHistoryEntry,
 } from '../services/shopping-list.service.js';
+import {
+  bulkShoppingItemsSchema,
+  setBoughtSchema,
+  shoppingItemInputSchema,
+  updateShoppingItemSchema,
+} from '../schemas/shopping-list.schema.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-
-const itemInputSchema = z.object({
-  name: z.string().min(1),
-  amount: z.string().optional(),
-  unit: z.string().optional(),
-  recipeId: z.uuid().nullish(),
-  recipeTitle: z.string().nullish(),
-});
 
 export async function listItems(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
@@ -30,7 +27,7 @@ export async function listItems(req: Request, res: Response): Promise<void> {
 export async function postItem(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const input = itemInputSchema.parse(req.body);
+    const input = shoppingItemInputSchema.parse(req.body);
     const items = await addShoppingItems(userId, [input]);
     res.status(201).json(items);
   } catch (err) {
@@ -41,7 +38,7 @@ export async function postItem(req: Request, res: Response): Promise<void> {
 export async function postItemsBulk(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { items } = z.object({ items: z.array(itemInputSchema).min(1) }).parse(req.body);
+    const { items } = bulkShoppingItemsSchema.parse(req.body);
     const result = await addShoppingItems(userId, items);
     res.status(201).json(result);
   } catch (err) {
@@ -53,12 +50,7 @@ export async function patchItem(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   const id = req.params.id as string;
   try {
-    const data = z.object({
-      name: z.string().min(1).optional(),
-      amount: z.string().optional(),
-      unit: z.string().optional(),
-      bought: z.boolean().optional(),
-    }).parse(req.body);
+    const data = updateShoppingItemSchema.parse(req.body);
     const ok = await updateShoppingItem(userId, id, data);
     if (!ok) { res.status(404).json({ error: 'Item not found' }); return; }
     res.json({ ok: true });
@@ -78,10 +70,7 @@ export async function removeItem(req: Request, res: Response): Promise<void> {
 export async function postBought(req: Request, res: Response): Promise<void> {
   const userId = (req as AuthenticatedRequest).userId;
   try {
-    const { ids, bought } = z.object({
-      ids: z.array(z.uuid()).min(1),
-      bought: z.boolean().default(true),
-    }).parse(req.body);
+    const { ids, bought } = setBoughtSchema.parse(req.body);
     const items = await setItemsBought(userId, ids, bought);
     res.json(items);
   } catch (err) {

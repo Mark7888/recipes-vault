@@ -17,12 +17,12 @@ import {
   acceptTransferHandler,
   rejectTransferHandler,
 } from '../controllers/collections.controller.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireUser } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/role.middleware.js';
 import { Role } from '@prisma/client';
 
 const router = Router();
-router.use(authMiddleware);
+router.use(requireUser);
 router.get('/', listCollections);
 router.post('/', createNewCollection);
 router.get('/transfers/incoming', listIncomingTransfersHandler);
