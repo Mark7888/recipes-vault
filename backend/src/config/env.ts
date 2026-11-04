@@ -14,6 +14,10 @@ const envSchema = z.object({
   // An empty value is the same as unset — Docker Compose always passes the
   // variable through, set or not.
   PUBLIC_BASE_URL: z.union([z.url(), z.literal('')]).optional(),
+  // Express "trust proxy" setting, needed behind a reverse proxy so rate limits
+  // apply to the real client IP. "true", a hop count like "1", or a list of
+  // proxy addresses/subnets. Unset or empty: trust nothing.
+  TRUST_PROXY: z.string().optional(),
   FETCH_TIMEOUT_MS: z.coerce.number().default(10000),
   FETCH_MAX_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB
 

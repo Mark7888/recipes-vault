@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
+import { safeGet } from '../utils/ssrf-guard.js';
 
 const MAX_IMAGE_DIMENSION = 1920;
 
@@ -54,13 +55,14 @@ export async function reorderImages(recipeId: string, imageIds: string[]) {
 
 export async function downloadAndSaveImage(imageUrl: string, recipeId: string): Promise<string | null> {
   try {
-    const axios = await import('axios');
-    const response = await axios.default.get(imageUrl, {
+    // Image URLs come from the scraped page, so they get the same SSRF guard
+    // as the page itself.
+    const { response } = await safeGet<ArrayBuffer>(imageUrl, {
       responseType: 'arraybuffer',
       timeout: 10000,
       maxContentLength: 8 * 1024 * 1024,
     });
-    const buffer = Buffer.from(response.data as ArrayBuffer);
+    const buffer = Buffer.from(response.data);
     return saveImage(buffer, recipeId, 'image.jpg');
   } catch {
     return null;
