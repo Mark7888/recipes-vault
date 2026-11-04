@@ -14,6 +14,26 @@ export function useShoppingList() {
   });
 }
 
+/**
+ * Number of not-yet-bought lines on the shopping list, for the nav badge.
+ * Same-name/same-unit items count once, matching the merged view on the
+ * Shopping page. Shares the list query, so it refreshes whenever any
+ * mutation (e.g. adding from a recipe) invalidates the list.
+ */
+export function useShoppingRemainingCount() {
+  const { data } = useQuery({
+    queryKey: shoppingKeys.list(),
+    queryFn: () => shoppingListApi.list(),
+    select: (items) =>
+      new Set(
+        items
+          .filter(i => !i.bought)
+          .map(i => `${i.name.toLowerCase()}|${i.unit.toLowerCase()}`),
+      ).size,
+  });
+  return data ?? 0;
+}
+
 export function useShoppingHistory() {
   return useQuery({
     queryKey: shoppingKeys.history(),

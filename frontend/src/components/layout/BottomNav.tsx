@@ -1,6 +1,7 @@
 import { Box, Flex, Text } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import { AddIcon, CartIcon, CollectionsIcon, RecipesIcon, UserIcon } from '../ui/icons';
+import { useShoppingRemainingCount } from '../../hooks/useShoppingList';
 
 const items = [
   { to: '/recipes', label: 'Recipes', icon: <RecipesIcon />, isActive: (p: string) => p.startsWith('/recipes') && p !== '/recipes/add' },
@@ -12,6 +13,7 @@ const items = [
 
 export function BottomNav() {
   const location = useLocation();
+  const shoppingCount = useShoppingRemainingCount();
 
   return (
     <Box
@@ -41,7 +43,29 @@ export function BottomNav() {
                 color={active ? 'green.600' : 'fg.muted'}
                 _active={{ bg: 'bg.subtle' }}
               >
-                {item.icon}
+                <Box position="relative" display="inline-flex">
+                  {item.icon}
+                  {item.to === '/shopping' && shoppingCount > 0 && (
+                    <Box
+                      position="absolute"
+                      top="-6px"
+                      right="-10px"
+                      minW="16px"
+                      h="16px"
+                      px="4px"
+                      borderRadius="full"
+                      bg="orange.500"
+                      color="white"
+                      fontSize="10px"
+                      fontWeight="bold"
+                      lineHeight="16px"
+                      textAlign="center"
+                      aria-label={`${shoppingCount} items left to buy`}
+                    >
+                      {shoppingCount > 99 ? '99+' : shoppingCount}
+                    </Box>
+                  )}
+                </Box>
                 <Text fontSize="xs" fontWeight={active ? 'semibold' : 'normal'}>
                   {item.label}
                 </Text>
