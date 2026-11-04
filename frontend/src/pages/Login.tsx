@@ -23,7 +23,9 @@ export default function Login() {
       const data = await authApi.login(username, password);
       setAuth(data.user, data.accessToken);
       const redirect = searchParams.get('redirect');
-      if (redirect && redirect.startsWith('/')) {
+      // Only same-site paths: "//host" and "/\host" are protocol-relative URLs
+      // that browsers would follow off to another site.
+      if (redirect && /^\/(?![/\\])/.test(redirect)) {
         // Full navigation: the redirect target is the capture catch-all route,
         // not an in-app SPA route, so it needs a real request (with the fresh
         // refresh-token cookie) rather than client-side routing.

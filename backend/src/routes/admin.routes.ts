@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { adminLogin, createInvite, getInvites, revokeInvite, createPasswordReset, getPasswordResets, revokePasswordReset, listUsers, deleteUser, setUserAiAccess } from '../controllers/admin.controller.js';
+import { authRateLimiter } from '../middleware/rate-limit.middleware.js';
 import { adminMiddleware } from '../middleware/admin.middleware.js';
 
 const router = Router();
-router.post('/login', adminLogin);
+router.post('/login', authRateLimiter, adminLogin);
 router.use(adminMiddleware);
 router.get('/users', listUsers);
 router.delete('/users/:id', deleteUser);

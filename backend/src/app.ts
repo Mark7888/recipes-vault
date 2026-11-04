@@ -18,24 +18,78 @@ import { verifyRefreshToken } from './services/auth.service.js';
 import { getRecipeByShareToken } from './services/recipes.service.js';
 import { appPreview, sendAppHtml, sharedRecipePreview } from './services/link-preview.service.js';
 import { prisma } from './lib/prisma.js';
+import { env } from './config/env.js';
+import { csrfProtection } from './middleware/csrf.middleware.js';
+import { apiRateLimiter } from './middleware/rate-limit.middleware.js';
 import type { Request, Response, NextFunction } from 'express';
 
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function parseTrustProxy(value: string | undefined): boolean | number | string | undefined {
+  if (!value) return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^\d+$/.test(value)) return Number(value);
+  return value;
+}
+
+/**
+ * Captures `targetUrl` into the signed-in user's vault and sends the browser to
+ * the editor. These routes are reached by navigating the browser straight to
+ * them, so there's no JS around to attach an Authorization header:
+ * authenticate off the httpOnly refresh-token cookie instead, and send the user
+ * to log in if it's missing or expired (returning them here afterwards).
+ */
+function captureFromNavigation(targetUrl: string, req: Request, res: Response, next: NextFunction): void {
+  void (async () => {
+    const refreshToken = (req.cookies as Record<string, string>)?.[REFRESH_TOKEN_COOKIE];
+    let userId: string | undefined;
+    if (refreshToken) {
+      try {
+        const payload = verifyRefreshToken(refreshToken);
+        const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+        if (user && user.status === 'ACTIVE') userId = user.id;
+      } catch {
+        // fall through to redirect-to-login below
+      }
+    }
+
+    if (!userId) {
+      res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
+      return;
+    }
+
+    try {
+      const recipe = await captureAndCreateRecipe(targetUrl, userId);
+      // The editor offers an AI re-parse on this flag; it only acts on it
+      // for accounts that actually have the assistant.
+      const suffix = isCaptureIncomplete(recipe) ? '?aiSuggest=1' : '';
+      res.redirect(`/recipes/${recipe.id}/edit${suffix}`);
+    } catch (err) {
+      next(err);
+    }
+  })();
+}
+
 export function createApp() {
   const app = express();
+
+  const trustProxy = parseTrustProxy(env.TRUST_PROXY);
+  if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
 
   app.use(requestLogger);
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+  app.use(csrfProtection);
 
   // Serve uploaded images
   app.use('/images', express.static(process.env.IMAGES_DIR || './data/images'));
 
   // API routes
+  app.use('/api', apiRateLimiter);
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/recipes', recipesRoutes);
@@ -71,15 +125,16 @@ export function createApp() {
 
   // PWA share target (see share_target in the web app manifest). Android puts
   // the shared link in `text` (sometimes `url` or `title`), so scan all three
-  // for the first http(s) URL and funnel it into the URL-prefix capture
-  // catch-all below, which already handles auth and the capture itself.
-  app.get('/share', (req: Request, res: Response) => {
+  // for the first http(s) URL and capture it. The URL is captured right here
+  // rather than redirected to, so a crafted share link can never bounce the
+  // browser off to another site.
+  app.get('/share', apiRateLimiter, (req: Request, res: Response, next: NextFunction) => {
     const candidates = [req.query.url, req.query.text, req.query.title];
     for (const value of candidates) {
       if (typeof value !== 'string') continue;
       const match = /https?:\/\/\S+/.exec(value);
       if (match) {
-        res.redirect('/' + match[0].replace(/^https?:\/\//, ''));
+        captureFromNavigation(match[0], req, res, next);
         return;
       }
     }
@@ -111,6 +166,10 @@ export function createApp() {
   const domainPattern = /^\/([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)(\/.*)?$/;
 
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api') || !domainPattern.test(req.path)) return next();
+    apiRateLimiter(req, res, next);
+  });
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/images')) {
       return next();
     }
@@ -122,38 +181,7 @@ export function createApp() {
       const qs = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query as Record<string, string>).toString() : '';
       const targetUrl = `${scheme}://${capturedDomain}${restPath}${qs}`;
 
-      // This route is reached by directly navigating the browser to it, so there's
-      // no JS around to attach an Authorization header. Authenticate off the
-      // httpOnly refresh-token cookie instead, and send the user to log in if it's
-      // missing or expired (returning them here afterwards).
-      void (async () => {
-        const refreshToken = (req.cookies as Record<string, string>)?.[REFRESH_TOKEN_COOKIE];
-        let userId: string | undefined;
-        if (refreshToken) {
-          try {
-            const payload = verifyRefreshToken(refreshToken);
-            const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-            if (user && user.status === 'ACTIVE') userId = user.id;
-          } catch {
-            // fall through to redirect-to-login below
-          }
-        }
-
-        if (!userId) {
-          res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
-          return;
-        }
-
-        try {
-          const recipe = await captureAndCreateRecipe(targetUrl, userId);
-          // The editor offers an AI re-parse on this flag; it only acts on it
-          // for accounts that actually have the assistant.
-          const suffix = isCaptureIncomplete(recipe) ? '?aiSuggest=1' : '';
-          res.redirect(`/recipes/${recipe.id}/edit${suffix}`);
-        } catch (err) {
-          next(err);
-        }
-      })();
+      captureFromNavigation(targetUrl, req, res, next);
       return;
     }
     next();

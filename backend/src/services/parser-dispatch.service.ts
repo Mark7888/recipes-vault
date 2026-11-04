@@ -1,6 +1,5 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { validateUrl } from '../utils/ssrf-guard.js';
+import { safeGet, validateUrl } from '../utils/ssrf-guard.js';
 import { getParser } from '../parsers/registry.js';
 import { extractRecipeFromJsonLd } from './jsonld-extractor.service.js';
 import { env } from '../config/env.js';
@@ -58,17 +57,15 @@ export async function fetchPage(rawUrl: string): Promise<FetchedPage> {
   const urlString = validatedUrl.toString();
 
   try {
-    const response = await axios.get(urlString, {
+    const { response } = await safeGet<string>(urlString, {
       timeout: env.FETCH_TIMEOUT_MS,
       maxContentLength: env.FETCH_MAX_BYTES,
-      maxRedirects: 5,
       headers: {
         'User-Agent': 'RecipeVault/1.0 (+https://github.com/recipevault)',
         'Accept': 'text/html,application/xhtml+xml',
       },
     });
-    const html = response.data as string;
-    return { url: urlString, html: html || null };
+    return { url: urlString, html: response.data || null };
   } catch {
     return { url: urlString, html: null };
   }

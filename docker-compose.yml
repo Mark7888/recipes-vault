@@ -16,6 +16,7 @@ services:
       PORT: "3000"
       IMAGES_DIR: /data/images
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-3.1-flash-lite}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
