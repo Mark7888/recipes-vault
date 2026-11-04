@@ -183,6 +183,21 @@ PUBLIC_BASE_URL=https://yourdomain.com
 An unknown or revoked token previews as plain RecipeVault, so a preview never
 reveals which links exist.
 
+## Rate limiting behind a reverse proxy
+
+The API is rate limited per client IP (300 requests a minute overall, and 10
+failed sign-in, registration or password-reset attempts per 15 minutes). Behind a
+reverse proxy every request looks like it comes from the proxy, so tell the app
+to trust it and read the real IP from `X-Forwarded-For`:
+
+```
+TRUST_PROXY=1
+```
+
+`1` trusts one proxy hop (e.g. Caddy or nginx in front of the container). It also
+takes `true`, a larger hop count, or a comma-separated list of proxy IPs/subnets.
+Leave it unset when nothing sits in front of the app.
+
 ## Updating
 
 ```bash
