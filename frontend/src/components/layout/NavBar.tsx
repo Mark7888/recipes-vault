@@ -1,9 +1,10 @@
-import { Box, Flex, HStack, Text, Button, IconButton, Popover, Portal } from '@chakra-ui/react';
+import { Box, Flex, HStack, Text, Button, IconButton, Popover, Portal, Badge } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { SettingsPanel } from '../user/SettingsPanel';
 import { PreferencesPanel } from '../user/PreferencesPanel';
 import { SettingsIcon } from '../ui/icons';
+import { useShoppingRemainingCount } from '../../hooks/useShoppingList';
 
 const desktopLinkStyle: React.CSSProperties = {
   color: 'white',
@@ -13,6 +14,7 @@ const desktopLinkStyle: React.CSSProperties = {
 
 export function NavBar() {
   const { user } = useAuthStore();
+  const shoppingCount = useShoppingRemainingCount();
 
   return (
     <Box as="header" bg="green.700" color="white" px={4} py={3} shadow="md" hideBelow="md">
@@ -27,7 +29,22 @@ export function NavBar() {
         <HStack gap={4} hideBelow="md">
           <Link to="/recipes" style={desktopLinkStyle}>My Recipes</Link>
           <Link to="/collections" style={desktopLinkStyle}>Collections</Link>
-          <Link to="/shopping" style={desktopLinkStyle}>Shopping</Link>
+          <Link to="/shopping" style={desktopLinkStyle}>
+            <HStack gap={1.5} as="span">
+              Shopping
+              {shoppingCount > 0 && (
+                <Badge
+                  size="sm"
+                  variant="solid"
+                  colorPalette="orange"
+                  borderRadius="full"
+                  aria-label={`${shoppingCount} items left to buy`}
+                >
+                  {shoppingCount > 99 ? '99+' : shoppingCount}
+                </Badge>
+              )}
+            </HStack>
+          </Link>
           <Link to="/recipes/add" style={desktopLinkStyle}>+ Add Recipe</Link>
           <Popover.Root positioning={{ placement: 'bottom-end' }}>
             <Popover.Trigger asChild>
